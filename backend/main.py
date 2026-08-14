@@ -91,12 +91,23 @@ def backtest(req: BacktestRequest):
         raw = yf.download(resolved, start=req.start, end=end,
                            auto_adjust=True, progress=False)
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"抓取資料時發生錯誤: {e}")
+        raw = None
+
+    # 第一種方式失敗或回空值時，改用 Ticker.history 再試一次
+    # （Yahoo Finance 的反爬蟲機制偶爾只擋其中一種呼叫方式）
+    if raw is None or raw.empty:
+        try:
+            raw = yf.Ticker(resolved).history(start=req.start, end=end, auto_adjust=True)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"抓取資料時發生錯誤: {e}")
 
     if raw is None or raw.empty:
         raise HTTPException(
             status_code=404,
-            detail=f"抓不到「{resolved}」的資料，請確認代碼是否正確、市場別是否選對，或該區間是否有交易資料。"
+            detail=(
+                f"抓不到「{resolved}」的資料。這通常是 Yahoo Finance 暫時封鎖了伺服器的連線"
+                f"（雲端主機常見問題，非程式錯誤），過幾分鐘再試一次，或確認代碼/市場別/日期區間是否正確。"
+            )
         )
 
     if isinstance(raw.columns, pd.MultiIndex):
