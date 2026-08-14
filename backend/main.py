@@ -54,6 +54,10 @@ class BacktestRequest(BaseModel):
 def resolve_ticker(market: str, ticker: str) -> str:
     t = ticker.strip().upper()
     if market == "tw":
+        # 指數代碼（如 ^TWII 台灣加權指數，常用來當台指期貨的代理標的）
+        # 本身就是完整代碼，不需要加 .TW 字尾
+        if t.startswith("^"):
+            return t
         if not (t.endswith(".TW") or t.endswith(".TWO")):
             t = f"{t}.TW"
     elif market == "crypto":
