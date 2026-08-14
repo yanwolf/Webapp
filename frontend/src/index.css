@@ -1,0 +1,64 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root {
+  --void: #08090b;
+  --panel: #121418;
+  --panel-raised: #191c21;
+  --border: #262a31;
+  --border-soft: #1d2026;
+
+  --text: #e9e7e1;
+  --text-muted: #8b8f98;
+  --text-faint: #565a63;
+
+  --gold: #d4b06a;
+  --gold-soft: rgba(212, 176, 106, 0.12);
+  --cyan: #6ee7df;
+  --cyan-soft: rgba(110, 231, 223, 0.10);
+
+  --up: #ec5f5f;      /* 紅：漲 / 做多 */
+  --up-soft: rgba(236, 95, 95, 0.12);
+  --down: #29b389;    /* 綠：跌 / 做空 */
+  --down-soft: rgba(41, 179, 137, 0.12);
+
+  --radius: 10px;
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Noto Sans TC', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background: var(--void);
+  color: var(--text);
+  font-family: var(--font-ui);
+}
+
+body {
+  background-image:
+    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(212, 176, 106, 0.06), transparent 60%),
+    radial-gradient(ellipse 900px 500px at 90% 0%, rgba(110, 231, 223, 0.05), transparent 60%);
+  background-attachment: fixed;
+}
+
+::selection { background: var(--gold-soft); color: var(--gold); }
+
+button, input, select { font-family: inherit; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--void); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+
+:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.up { color: var(--up); }
+.down { color: var(--down); }
