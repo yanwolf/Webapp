@@ -284,6 +284,49 @@ def run_backtest(df: pd.DataFrame, allow_short: bool = True,
 # ----------------------------------------------------------------------
 # 4. 績效指標
 # ----------------------------------------------------------------------
+def compute_raw_metrics(equity: pd.Series, trades: pd.DataFrame, init_capital: float, freq_per_year: int = 252) -> dict:
+    """回傳數字型態的績效指標（供策略比較排序使用，非顯示用的格式化字串）"""
+    if len(equity) == 0:
+        return dict(total_return=None, cagr=None, sharpe=None, max_dd=None,
+                    n_trades=0, win_rate=None, profit_factor=None, avg_ret=None)
+
+    total_return = float(equity.iloc[-1] / init_capital - 1)
+    n_years = len(equity) / freq_per_year
+    cagr = float((equity.iloc[-1] / init_capital) ** (1 / n_years) - 1) if n_years > 0 else None
+
+    daily_ret = equity.pct_change().fillna(0)
+    sharpe = float((daily_ret.mean() / daily_ret.std()) * np.sqrt(freq_per_year)) if daily_ret.std() > 0 else None
+
+    running_max = equity.cummax()
+    drawdown = equity / running_max - 1
+    max_dd = float(drawdown.min())
+
+    n_trades = len(trades)
+    if n_trades > 0:
+        win_trades = trades[trades["pnl"] > 0]
+        lose_trades = trades[trades["pnl"] <= 0]
+        win_rate = float(len(win_trades) / n_trades)
+        gross_profit = win_trades["pnl"].sum()
+        gross_loss = -lose_trades["pnl"].sum()
+        profit_factor = float(gross_profit / gross_loss) if gross_loss > 0 else None
+        avg_ret = float(trades["ret"].mean())
+    else:
+        win_rate = profit_factor = avg_ret = None
+
+    def clean(v):
+        if v is None:
+            return None
+        if np.isnan(v) or np.isinf(v):
+            return None
+        return v
+
+    return dict(
+        total_return=clean(total_return), cagr=clean(cagr), sharpe=clean(sharpe),
+        max_dd=clean(max_dd), n_trades=n_trades, win_rate=clean(win_rate),
+        profit_factor=clean(profit_factor), avg_ret=clean(avg_ret),
+    )
+
+
 def compute_metrics(equity: pd.Series, trades: pd.DataFrame, init_capital: float, freq_per_year: int = 252) -> dict:
     if len(equity) == 0:
         return {}

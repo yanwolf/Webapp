@@ -32,7 +32,10 @@ import db
 import auth
 import telegram_client
 from market_data import fetch_ohlcv, sanitize, INTERVAL_META
-from strategy_runner import run_strategy, STRATEGY_LABELS, DEFAULT_PARAMS, min_bars_for_strategy
+from strategy_runner import (
+    run_strategy, STRATEGY_LABELS, DEFAULT_PARAMS, min_bars_for_strategy,
+    ALL_SIGNAL_STRATEGIES, STYLE_PRESETS,
+)
 from scheduler import start_scheduler
 
 logging.basicConfig(level=logging.INFO)
@@ -230,6 +233,91 @@ def backtest(req: BacktestRequest, user=Depends(auth.get_current_user)):
         "price_series": price_series,
         "equity_series": equity_series,
         "trades": trades,
+    }
+
+
+# ======================================================================
+# 策略比較：同一標的、同一區間，一次跑完所有策略排出優劣
+# ======================================================================
+class CompareRequest(BaseModel):
+    market: Literal["us", "tw", "crypto"]
+    ticker: str
+    style: Literal["short", "swing"] = Field("swing", description="short=短沖, swing=長線波段")
+    interval: Optional[Literal["1d", "4h", "1h", "15m", "5m", "1m"]] = Field(
+        None, description="留空則依 style 自動決定"
+    )
+    start: str = Field("2015-01-01")
+    end: Optional[str] = Field(None)
+    capital: float = Field(1_000_000, gt=0)
+    allow_short: bool = Field(True)
+
+
+@app.post("/api/compare-strategies")
+def compare_strategies(req: CompareRequest, user=Depends(auth.get_current_user)):
+    preset = STYLE_PRESETS[req.style]
+    interval = req.interval or preset["interval"]
+
+    df, resolved, notes, err = fetch_ohlcv(req.market, req.ticker, interval, req.start, req.end)
+    if err:
+        status = 404 if "抓不到" in err else 502
+        raise HTTPException(status_code=status, detail=err)
+
+    meta = INTERVAL_META[interval]
+    from bollinger_strategy import compute_raw_metrics
+
+    results = []
+    buy_hold_cagr = None
+
+    strategies_to_run = ["buy_hold"] + ALL_SIGNAL_STRATEGIES
+    for strat in strategies_to_run:
+        params = DEFAULT_PARAMS.get(strat, {})
+        min_needed = min_bars_for_strategy(strat, params, base_min=MIN_BARS)
+        if len(df) < min_needed:
+            results.append(dict(
+                strategy=strat, strategy_label=STRATEGY_LABELS.get(strat, strat),
+                error=f"資料筆數不足（需要約{min_needed}根，只有{len(df)}根）", metrics=None,
+            ))
+            continue
+        try:
+            out = run_strategy(df, strat, params, allow_short=req.allow_short,
+                                capital=req.capital, bars_per_day=meta["bars_per_day"])
+            m = compute_raw_metrics(out["res"]["equity"], out["res"]["trades"],
+                                     init_capital=req.capital, freq_per_year=int(252 * meta["bars_per_day"]))
+            if strat == "buy_hold":
+                buy_hold_cagr = m["cagr"]
+            results.append(dict(
+                strategy=strat, strategy_label=STRATEGY_LABELS.get(strat, strat),
+                metrics=m, error=None,
+            ))
+        except Exception as e:
+            traceback.print_exc()
+            results.append(dict(
+                strategy=strat, strategy_label=STRATEGY_LABELS.get(strat, strat),
+                error=f"執行失敗: {e}", metrics=None,
+            ))
+
+    for r in results:
+        if r["metrics"] is not None and buy_hold_cagr is not None and r["metrics"]["cagr"] is not None:
+            r["beats_buy_hold"] = r["metrics"]["cagr"] > buy_hold_cagr
+        else:
+            r["beats_buy_hold"] = None
+
+    # 依 CAGR 由高到低排序（無法計算的排最後）
+    def sort_key(r):
+        c = r["metrics"]["cagr"] if r["metrics"] and r["metrics"]["cagr"] is not None else -999
+        return -c
+    results.sort(key=sort_key)
+
+    return {
+        "ticker_resolved": resolved,
+        "style": req.style,
+        "style_label": preset["label"],
+        "interval": interval,
+        "data_points": len(df),
+        "date_range": [df.index[0].strftime("%Y-%m-%d"), df.index[-1].strftime("%Y-%m-%d")],
+        "notes": notes,
+        "buy_hold_cagr": buy_hold_cagr,
+        "results": results,
     }
 
 

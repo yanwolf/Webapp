@@ -8,6 +8,7 @@ import { RsiChart, MacdChart } from './components/OscillatorChart';
 import EquityChart from './components/EquityChart';
 import TradesTable from './components/TradesTable';
 import WatchlistPage from './WatchlistPage';
+import ComparePage from './ComparePage';
 import LoginPage from './LoginPage';
 
 function defaultDates() {
@@ -133,11 +134,14 @@ export default function App() {
 
       <div className="tab-row">
         <button className={`tab-btn ${tab === 'backtest' ? 'active' : ''}`} onClick={() => setTab('backtest')}>回測</button>
+        <button className={`tab-btn ${tab === 'compare' ? 'active' : ''}`} onClick={() => setTab('compare')}>策略比較</button>
         <button className={`tab-btn ${tab === 'watchlist' ? 'active' : ''}`} onClick={() => setTab('watchlist')}>追蹤清單</button>
       </div>
 
       {tab === 'watchlist' ? (
         <WatchlistPage />
+      ) : tab === 'compare' ? (
+        <ComparePage />
       ) : (
       <>
       <p className="hero-sub">

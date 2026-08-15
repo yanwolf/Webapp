@@ -102,6 +102,14 @@ def run_strategy(df, strategy: str, params: dict, allow_short: bool = True,
                 oscillator_keys=oscillator_keys, chart_type=chart_type)
 
 
+ALL_SIGNAL_STRATEGIES = ["bollinger", "ma3", "ma_cross", "donchian", "rsi", "macd"]
+
+STYLE_PRESETS = {
+    "short": dict(label="短沖", interval="1h", strategies=ALL_SIGNAL_STRATEGIES),
+    "swing": dict(label="長線波段", interval="1d", strategies=ALL_SIGNAL_STRATEGIES),
+}
+
+
 def determine_latest_event(sig_df, res):
     """
     判斷最新一根K棒是否剛好出現「新的」進場或出場事件
