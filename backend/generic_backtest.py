@@ -108,7 +108,11 @@ def run_generic_backtest(df: pd.DataFrame, allow_short: bool = True,
         equity_curve.append(mtm if position != 0 else cash)
 
     equity = pd.Series(equity_curve, index=idx[1:], name="equity")
-    return dict(equity=equity, trades=pd.DataFrame(trades),
+    open_position = None
+    if position != 0:
+        open_position = dict(side="long" if position == 1 else "short",
+                              entry_date=entry_date, entry_price=entry_price)
+    return dict(equity=equity, trades=pd.DataFrame(trades), open_position=open_position,
                 final_capital=equity.iloc[-1] if len(equity) else init_capital)
 
 

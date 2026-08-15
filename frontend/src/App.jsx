@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
-import axios from 'axios';
+import React, { useEffect, useState } from 'react';
+import api from './api';
 import './App.css';
-import { API_BASE_URL } from './config';
 import ControlPanel from './components/ControlPanel';
 import MetricsGrid from './components/MetricsGrid';
 import PriceChart from './components/PriceChart';
 import { RsiChart, MacdChart } from './components/OscillatorChart';
 import EquityChart from './components/EquityChart';
 import TradesTable from './components/TradesTable';
+import WatchlistPage from './WatchlistPage';
+import LoginPage from './LoginPage';
 
 function defaultDates() {
   const end = new Date();
@@ -28,6 +29,8 @@ const STRATEGY_SUBTITLE = {
 };
 
 export default function App() {
+  const [username, setUsername] = useState(() => localStorage.getItem('username'));
+  const [tab, setTab] = useState('backtest');
   const { start, end } = defaultDates();
   const [form, setForm] = useState({
     strategy: 'bollinger',
@@ -75,7 +78,7 @@ export default function App() {
     try {
       const payload = { ...form, end: form.end || undefined };
       numericKeys.forEach((k) => { payload[k] = Number(form[k]); });
-      const { data } = await axios.post(`${API_BASE_URL}/api/backtest`, payload);
+      const { data } = await api.post('/api/backtest', payload);
       setResult(data);
     } catch (e) {
       const detail = e?.response?.data?.detail;
@@ -88,18 +91,55 @@ export default function App() {
 
   const chartType = result?.chart_type;
 
+  useEffect(() => {
+    const onExpired = () => setUsername(null);
+    window.addEventListener('auth-expired', onExpired);
+    return () => window.removeEventListener('auth-expired', onExpired);
+  }, []);
+
+  const logout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+    setUsername(null);
+  };
+
+  if (!username) {
+    return <LoginPage onLoggedIn={setUsername} />;
+  }
+
   return (
     <div className="app-shell">
-      <div className="hero">
-        <div className="hero-mark">
-          <svg viewBox="0 0 34 34" fill="none">
-            <polygon points="17,2 30,12 24,32 10,32 4,12" stroke="#d4b06a" strokeWidth="1.2" fill="rgba(212,176,106,0.08)" />
-            <polygon points="17,2 30,12 17,17" fill="rgba(110,231,223,0.18)" />
-            <line x1="17" y1="2" x2="17" y2="32" stroke="#6ee7df" strokeWidth="0.6" opacity="0.6" />
-          </svg>
+      <div className="hero" style={{ justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div className="hero-mark">
+            <svg viewBox="0 0 34 34" fill="none">
+              <polygon points="17,2 30,12 24,32 10,32 4,12" stroke="#d4b06a" strokeWidth="1.2" fill="rgba(212,176,106,0.08)" />
+              <polygon points="17,2 30,12 17,17" fill="rgba(110,231,223,0.18)" />
+              <line x1="17" y1="2" x2="17" y2="32" stroke="#6ee7df" strokeWidth="0.6" opacity="0.6" />
+            </svg>
+          </div>
+          <h1>黑鑽策略回測</h1>
         </div>
-        <h1>黑鑽策略回測</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ color: 'var(--text-faint)', fontSize: 13 }}>{username}</span>
+          <button
+            onClick={logout}
+            style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 7, padding: '6px 12px', fontSize: 12.5, cursor: 'pointer' }}
+          >
+            登出
+          </button>
+        </div>
       </div>
+
+      <div className="tab-row">
+        <button className={`tab-btn ${tab === 'backtest' ? 'active' : ''}`} onClick={() => setTab('backtest')}>回測</button>
+        <button className={`tab-btn ${tab === 'watchlist' ? 'active' : ''}`} onClick={() => setTab('watchlist')}>追蹤清單</button>
+      </div>
+
+      {tab === 'watchlist' ? (
+        <WatchlistPage />
+      ) : (
+      <>
       <p className="hero-sub">
         {STRATEGY_SUBTITLE[form.strategy]} — 輸入任一美股、台股或加密貨幣代碼，立即檢視策略歷史績效。
       </p>
@@ -152,6 +192,8 @@ export default function App() {
       <footer className="note">
         資料來源：Yahoo Finance（經 yfinance 抓取）。策略邏輯為量化重建，僅供研究與策略驗證使用，不構成投資建議；歷史績效不代表未來表現。
       </footer>
+      </>
+      )}
     </div>
   );
 }

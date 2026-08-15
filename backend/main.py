@@ -1,35 +1,44 @@
 # -*- coding: utf-8 -*-
 """
-多策略回測 API
-==============
-支援策略：布林通道 / 均線三刀流 / 均線交叉 / 唐奇安通道突破 / RSI / MACD / 買進持有
-POST /api/backtest  執行回測，回傳指標、走勢+指標序列、權益曲線、逐筆交易
-GET  /api/health     健康檢查
-"""
-import math
-import traceback
-from datetime import date, datetime, timedelta
-from typing import Optional, Literal, Tuple
+多策略回測 + 多使用者追蹤清單 + 各自的 Telegram Bot 通知
+==========================================================
+POST /api/auth/register          註冊帳號（需邀請碼）
+POST /api/auth/login             登入，取得 JWT
+GET  /api/auth/me                取得目前登入使用者資訊
 
-import numpy as np
-import pandas as pd
-import yfinance as yf
-from fastapi import FastAPI, HTTPException
+POST /api/backtest                執行回測
+GET  /api/health                  健康檢查
+
+POST /api/telegram/config         儲存/更新自己的 Bot Token（會自動註冊 webhook）
+GET  /api/telegram/status         查詢自己的 Telegram 設定狀態
+DELETE /api/telegram/config       解除自己的 Telegram 設定
+POST /api/telegram/webhook/{secret}  Telegram 伺服器回呼（依 secret 對應到使用者）
+
+GET    /api/watchlist             取得自己的追蹤清單
+POST   /api/watchlist             新增追蹤項目
+PATCH  /api/watchlist/{id}        啟用/停用
+DELETE /api/watchlist/{id}        刪除
+"""
+import logging
+import os
+import traceback
+from typing import Optional, Literal, Dict, Any
+
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from bollinger_strategy import (
-    compute_indicators, detect_breakout_signals, detect_divergence_signals,
-    run_backtest, compute_metrics,
-)
-from ma_strategy import build_ma_signals, run_backtest_ma
-from generic_backtest import run_generic_backtest, run_buy_and_hold
-from ma_cross_strategy import compute_ma_cross_signals
-from donchian_strategy import compute_donchian_signals
-from rsi_strategy import compute_rsi_signals
-from macd_strategy import compute_macd_signals
+import db
+import auth
+import telegram_client
+from market_data import fetch_ohlcv, sanitize, INTERVAL_META
+from strategy_runner import run_strategy, STRATEGY_LABELS, DEFAULT_PARAMS, min_bars_for_strategy
+from scheduler import start_scheduler
 
-app = FastAPI(title="Multi-Strategy Backtest API")
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("main")
+
+app = FastAPI(title="Multi-Strategy Backtest + Multi-User Watchlist API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,113 +49,111 @@ app.add_middleware(
 )
 
 MIN_BARS = 60
-
-INTERVAL_META = {
-    "1d": {"yf_interval": "1d", "max_lookback_days": None, "resample": None, "bars_per_day": 1},
-    "4h": {"yf_interval": "1h", "max_lookback_days": 729, "resample": "4h", "bars_per_day": 1.625},
-    "1h": {"yf_interval": "1h", "max_lookback_days": 729, "resample": None, "bars_per_day": 6.5},
-    "15m": {"yf_interval": "15m", "max_lookback_days": 59, "resample": None, "bars_per_day": 26},
-    "5m": {"yf_interval": "5m", "max_lookback_days": 59, "resample": None, "bars_per_day": 78},
-    "1m": {"yf_interval": "1m", "max_lookback_days": 7, "resample": None, "bars_per_day": 390},
-}
-
-SQUEEZE_MONTHS_IN_DAYS = 126
-
-STRATEGY_LABELS = {
-    "bollinger": "布林通道策略",
-    "ma3": "均線三刀流",
-    "ma_cross": "均線黃金/死亡交叉",
-    "donchian": "唐奇安通道突破",
-    "rsi": "RSI 超買超賣",
-    "macd": "MACD 動量策略",
-    "buy_hold": "買進持有（基準）",
-}
+SIGNUP_INVITE_CODE = os.environ.get("SIGNUP_INVITE_CODE", "")
+PUBLIC_BACKEND_URL = os.environ.get("PUBLIC_BACKEND_URL", "").rstrip("/")
 
 
+@app.on_event("startup")
+def on_startup():
+    db.init_db()
+    start_scheduler()
+    logger.info("啟動完成：資料庫已初始化、背景排程已啟動")
+    if not PUBLIC_BACKEND_URL:
+        logger.warning("尚未設定 PUBLIC_BACKEND_URL，Telegram webhook 將無法自動註冊")
+    if not os.environ.get("JWT_SECRET_KEY"):
+        logger.warning("尚未設定 JWT_SECRET_KEY，將使用不安全的預設值（正式環境請務必設定）")
+
+
+# ======================================================================
+# 帳號註冊 / 登入
+# ======================================================================
+class RegisterRequest(BaseModel):
+    username: str
+    password: str = Field(..., min_length=6)
+    invite_code: str = ""
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/api/auth/register")
+def register(req: RegisterRequest):
+    if SIGNUP_INVITE_CODE and req.invite_code != SIGNUP_INVITE_CODE:
+        raise HTTPException(status_code=403, detail="邀請碼錯誤")
+    if not auth.validate_username(req.username):
+        raise HTTPException(status_code=422, detail="帳號需為 3-20 字元的英數字、底線或連字號")
+    if db.get_user_by_username(req.username):
+        raise HTTPException(status_code=409, detail="這個帳號已經被註冊了")
+
+    password_hash = auth.hash_password(req.password)
+    user_id = db.create_user(req.username, password_hash)
+    token = auth.create_token(user_id, req.username)
+    return {"token": token, "username": req.username}
+
+
+@app.post("/api/auth/login")
+def login(req: LoginRequest):
+    user = db.get_user_by_username(req.username)
+    if not user or not auth.verify_password(req.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="帳號或密碼錯誤")
+    token = auth.create_token(user["id"], user["username"])
+    return {"token": token, "username": user["username"]}
+
+
+@app.get("/api/auth/me")
+def me(user=Depends(auth.get_current_user)):
+    return {"id": user["id"], "username": user["username"]}
+
+
+# ======================================================================
+# 回測 API
+# ======================================================================
 class BacktestRequest(BaseModel):
     market: Literal["us", "tw", "crypto"] = Field(..., description="市場別")
-    ticker: str = Field(..., description="代碼，例如 AAPL / 2330 / BTC / ^TWII")
+    ticker: str
     strategy: Literal["bollinger", "ma3", "ma_cross", "donchian", "rsi", "macd", "buy_hold"] = Field("bollinger")
-    interval: Literal["1d", "4h", "1h", "15m", "5m", "1m"] = Field("1d", description="K線週期")
-    start: str = Field("2015-01-01", description="回測起始日 YYYY-MM-DD")
-    end: Optional[str] = Field(None, description="回測結束日，預設今天")
+    interval: Literal["1d", "4h", "1h", "15m", "5m", "1m"] = Field("1d")
+    start: str = Field("2015-01-01")
+    end: Optional[str] = Field(None)
     capital: float = Field(1_000_000, gt=0)
     allow_short: bool = Field(True)
 
-    # 布林通道參數
     bb_window: int = Field(20, ge=5, le=100)
     bb_std: float = Field(2.0, ge=0.5, le=4.0)
     vol_mult: float = Field(1.5, ge=1.0, le=5.0)
-
-    # 均線三刀流參數
     ma_fast: int = Field(20, ge=2, le=200)
     ma_mid: int = Field(60, ge=5, le=400)
     ma_slow: int = Field(240, ge=10, le=800)
-
-    # 均線交叉參數
     cross_fast: int = Field(20, ge=2, le=200)
     cross_slow: int = Field(60, ge=5, le=400)
     cross_ma_type: Literal["sma", "ema"] = Field("sma")
-    cross_stop_pct: float = Field(0.08, ge=0.0, le=0.5, description="0表示不設停損")
-
-    # 唐奇安通道參數
+    cross_stop_pct: float = Field(0.08, ge=0.0, le=0.5)
     donch_entry_window: int = Field(20, ge=5, le=200)
     donch_exit_window: int = Field(10, ge=3, le=200)
-
-    # RSI 參數
     rsi_period: int = Field(14, ge=2, le=100)
     rsi_oversold: float = Field(30, ge=1, le=49)
     rsi_overbought: float = Field(70, ge=51, le=99)
     rsi_stop_pct: float = Field(0.06, ge=0.0, le=0.5)
-
-    # MACD 參數
     macd_fast: int = Field(12, ge=2, le=100)
     macd_slow: int = Field(26, ge=3, le=200)
     macd_signal: int = Field(9, ge=2, le=100)
     macd_stop_pct: float = Field(0.08, ge=0.0, le=0.5)
 
 
-def resolve_ticker(market: str, ticker: str) -> str:
-    t = ticker.strip().upper()
-    if market == "tw":
-        if t.startswith("^"):
-            return t
-        if not (t.endswith(".TW") or t.endswith(".TWO")):
-            t = f"{t}.TW"
-    elif market == "crypto":
-        if "-USD" not in t and "-USDT" not in t:
-            t = f"{t}-USD"
-    return t
-
-
-def sanitize(value):
-    if isinstance(value, (np.floating, float)):
-        v = float(value)
-        return None if (math.isnan(v) or math.isinf(v)) else v
-    if isinstance(value, (np.integer,)):
-        return int(value)
-    if isinstance(value, (pd.Timestamp, date, datetime)):
-        return value.strftime("%Y-%m-%d")
-    return value
-
-
-def clamp_start_date(requested_start: str, end_str: str, interval_key: str) -> Tuple[str, Optional[str]]:
-    meta = INTERVAL_META[interval_key]
-    max_days = meta["max_lookback_days"]
-    if max_days is None:
-        return requested_start, None
-
-    end_dt = datetime.strptime(end_str, "%Y-%m-%d") if end_str else datetime.today()
-    earliest_allowed = end_dt - timedelta(days=max_days)
-    requested_dt = datetime.strptime(requested_start, "%Y-%m-%d")
-
-    if requested_dt < earliest_allowed:
-        note = (
-            f"「{interval_key}」週期的資料，Yahoo Finance 最多只提供回溯約 {max_days} 天，"
-            f"已自動把起始日期調整為 {earliest_allowed.strftime('%Y-%m-%d')}。"
-        )
-        return earliest_allowed.strftime("%Y-%m-%d"), note
-    return requested_start, None
+def _req_to_params(req: BacktestRequest) -> Dict[str, Any]:
+    return dict(
+        bb_window=req.bb_window, bb_std=req.bb_std, vol_mult=req.vol_mult,
+        ma_fast=req.ma_fast, ma_mid=req.ma_mid, ma_slow=req.ma_slow,
+        cross_fast=req.cross_fast, cross_slow=req.cross_slow, cross_ma_type=req.cross_ma_type,
+        cross_stop_pct=req.cross_stop_pct,
+        donch_entry_window=req.donch_entry_window, donch_exit_window=req.donch_exit_window,
+        rsi_period=req.rsi_period, rsi_oversold=req.rsi_oversold, rsi_overbought=req.rsi_overbought,
+        rsi_stop_pct=req.rsi_stop_pct,
+        macd_fast=req.macd_fast, macd_slow=req.macd_slow, macd_signal=req.macd_signal,
+        macd_stop_pct=req.macd_stop_pct,
+    )
 
 
 @app.get("/api/health")
@@ -155,178 +162,67 @@ def health():
 
 
 @app.post("/api/backtest")
-def backtest(req: BacktestRequest):
-    resolved = resolve_ticker(req.market, req.ticker)
-    end = req.end or datetime.today().strftime("%Y-%m-%d")
+def backtest(req: BacktestRequest, user=Depends(auth.get_current_user)):
+    df, resolved, notes, err = fetch_ohlcv(req.market, req.ticker, req.interval, req.start, req.end)
+    if err:
+        status = 404 if "抓不到" in err else 502
+        raise HTTPException(status_code=status, detail=err)
 
-    interval_key = req.interval
-    meta = INTERVAL_META[interval_key]
-    yf_interval = meta["yf_interval"]
-
-    effective_start, range_note = clamp_start_date(req.start, end, interval_key)
-
-    try:
-        raw = yf.download(resolved, start=effective_start, end=end,
-                           interval=yf_interval, auto_adjust=True, progress=False)
-    except Exception:
-        raw = None
-
-    if raw is None or raw.empty:
-        try:
-            raw = yf.Ticker(resolved).history(start=effective_start, end=end,
-                                               interval=yf_interval, auto_adjust=True)
-        except Exception as e:
-            raise HTTPException(status_code=502, detail=f"抓取資料時發生錯誤: {e}")
-
-    if raw is None or raw.empty:
-        raise HTTPException(
-            status_code=404,
-            detail=(
-                f"抓不到「{resolved}」在「{interval_key}」週期下的資料。可能是 Yahoo Finance 暫時封鎖了伺服器連線"
-                f"（過幾分鐘再試一次），也可能是這個代碼沒有提供分鐘/小時線資料（常見於部分台股/加密貨幣），"
-                f"建議先切回日K確認代碼本身沒問題。"
-            )
-        )
-
-    if isinstance(raw.columns, pd.MultiIndex):
-        raw.columns = raw.columns.get_level_values(0)
-    df = raw[["Open", "High", "Low", "Close", "Volume"]].dropna()
-
-    if meta["resample"]:
-        df = df.resample(meta["resample"]).agg({
-            "Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum",
-        }).dropna()
-
-    min_bars_needed = MIN_BARS
-    if req.strategy == "ma3":
-        min_bars_needed = max(MIN_BARS, int(req.ma_slow * 1.2))
-    elif req.strategy == "ma_cross":
-        min_bars_needed = max(MIN_BARS, int(req.cross_slow * 1.2))
-    elif req.strategy == "macd":
-        min_bars_needed = max(MIN_BARS, int(req.macd_slow * 1.5))
+    meta = INTERVAL_META[req.interval]
+    params = _req_to_params(req)
+    min_bars_needed = min_bars_for_strategy(req.strategy, params, base_min=MIN_BARS)
 
     if len(df) < min_bars_needed:
         raise HTTPException(
             status_code=422,
             detail=(
-                f"「{resolved}」在「{interval_key}」週期下只抓到 {len(df)} 根K棒，過少無法計算指標"
-                f"（此設定至少需要約 {min_bars_needed} 根）。分鐘/小時線的歷史資料本來就比日K短很多，"
-                f"請試著縮短回測區間、改用較長的K線週期，或調小策略的週期參數。"
+                f"「{resolved}」在「{req.interval}」週期下只抓到 {len(df)} 根K棒，過少無法計算指標"
+                f"（此設定至少需要約 {min_bars_needed} 根）。請縮短回測區間、改用較長的K線週期，或調小策略週期參數。"
             )
         )
 
     try:
-        chart_type = "lines"
-        overlay_keys = []
-
-        if req.strategy == "buy_hold":
-            res = run_buy_and_hold(df, init_capital=req.capital)
-            sig_df = df
-            chart_type = "none"
-            overlay_keys = []
-
-        elif req.strategy == "ma3":
-            sig_df = build_ma_signals(df, fast=req.ma_fast, mid=req.ma_mid, slow=req.ma_slow)
-            res = run_backtest_ma(sig_df, allow_short=req.allow_short, init_capital=req.capital)
-            overlay_keys = ["ema_fast", "ema_mid", "ema_slow"]
-            chart_type = "lines"
-
-        elif req.strategy == "ma_cross":
-            sig_df = compute_ma_cross_signals(df, fast=req.cross_fast, slow=req.cross_slow, ma_type=req.cross_ma_type)
-            stop_pct = req.cross_stop_pct if req.cross_stop_pct > 0 else None
-            res = run_generic_backtest(sig_df, allow_short=req.allow_short, init_capital=req.capital, stop_pct=stop_pct)
-            overlay_keys = ["ma_fast", "ma_slow"]
-            chart_type = "lines"
-
-        elif req.strategy == "donchian":
-            sig_df = compute_donchian_signals(df, entry_window=req.donch_entry_window, exit_window=req.donch_exit_window)
-            res = run_generic_backtest(sig_df, allow_short=req.allow_short, init_capital=req.capital)
-            overlay_keys = ["donch_upper_entry", "donch_lower_entry"]
-            chart_type = "band"
-
-        elif req.strategy == "rsi":
-            sig_df = compute_rsi_signals(df, period=req.rsi_period, oversold=req.rsi_oversold, overbought=req.rsi_overbought)
-            stop_pct = req.rsi_stop_pct if req.rsi_stop_pct > 0 else None
-            res = run_generic_backtest(sig_df, allow_short=req.allow_short, init_capital=req.capital, stop_pct=stop_pct)
-            overlay_keys = []
-            chart_type = "oscillator_rsi"
-
-        elif req.strategy == "macd":
-            sig_df = compute_macd_signals(df, fast=req.macd_fast, slow=req.macd_slow, signal=req.macd_signal)
-            stop_pct = req.macd_stop_pct if req.macd_stop_pct > 0 else None
-            res = run_generic_backtest(sig_df, allow_short=req.allow_short, init_capital=req.capital, stop_pct=stop_pct)
-            overlay_keys = []
-            chart_type = "oscillator_macd"
-
-        else:  # bollinger (預設)
-            auto_squeeze_lookback = max(20, int(SQUEEZE_MONTHS_IN_DAYS * meta["bars_per_day"]))
-            squeeze_lookback = min(auto_squeeze_lookback, max(20, int(len(df) * 0.4)))
-
-            sig_df = compute_indicators(df, bb_window=req.bb_window, bb_std=req.bb_std,
-                                         squeeze_lookback=squeeze_lookback)
-            sig_df = detect_breakout_signals(sig_df, vol_mult=req.vol_mult)
-            sig_df = detect_divergence_signals(sig_df)
-            res = run_backtest(sig_df, allow_short=req.allow_short, init_capital=req.capital)
-            overlay_keys = ["mid", "upper", "lower"]
-            chart_type = "band"
-
-        metrics = compute_metrics(
-            res["equity"], res["trades"], init_capital=req.capital,
-            freq_per_year=int(252 * meta["bars_per_day"]),
-        )
-    except HTTPException:
-        raise
+        out = run_strategy(df, req.strategy, params, allow_short=req.allow_short,
+                            capital=req.capital, bars_per_day=meta["bars_per_day"])
+        sig_df, res = out["sig_df"], out["res"]
+        from bollinger_strategy import compute_metrics
+        metrics = compute_metrics(res["equity"], res["trades"], init_capital=req.capital,
+                                   freq_per_year=int(252 * meta["bars_per_day"]))
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"回測執行失敗: {e}")
 
     def fmt_ts(ts):
-        if interval_key == "1d":
+        if req.interval == "1d":
             return ts.strftime("%Y-%m-%d")
         return ts.strftime("%Y-%m-%d %H:%M")
-
-    oscillator_keys = {
-        "oscillator_rsi": ["rsi"],
-        "oscillator_macd": ["macd", "macd_signal", "macd_hist"],
-    }.get(chart_type, [])
 
     price_series = []
     for ts, row in sig_df.iterrows():
         item = {"date": fmt_ts(ts), "close": sanitize(row["Close"])}
-        for k in overlay_keys:
-            item[k] = sanitize(row[k])
-        for k in oscillator_keys:
+        for k in out["overlay_keys"] + out["oscillator_keys"]:
             item[k] = sanitize(row[k])
         price_series.append(item)
 
-    equity_series = [
-        {"date": fmt_ts(ts), "equity": sanitize(v)}
-        for ts, v in res["equity"].items()
-    ]
+    equity_series = [{"date": fmt_ts(ts), "equity": sanitize(v)} for ts, v in res["equity"].items()]
 
     trades = []
     if len(res["trades"]):
         for _, r in res["trades"].iterrows():
             trades.append({
-                "entry_date": fmt_ts(r["entry_date"]),
-                "exit_date": fmt_ts(r["exit_date"]),
-                "side": r["side"],
-                "entry_price": sanitize(r["entry_price"]),
-                "exit_price": sanitize(r["exit_price"]),
-                "pnl": sanitize(r["pnl"]),
-                "ret": sanitize(r["ret"]),
+                "entry_date": fmt_ts(r["entry_date"]), "exit_date": fmt_ts(r["exit_date"]), "side": r["side"],
+                "entry_price": sanitize(r["entry_price"]), "exit_price": sanitize(r["exit_price"]),
+                "pnl": sanitize(r["pnl"]), "ret": sanitize(r["ret"]),
             })
-
-    notes = [n for n in [range_note] if n]
 
     return {
         "ticker_resolved": resolved,
         "strategy": req.strategy,
         "strategy_label": STRATEGY_LABELS.get(req.strategy, req.strategy),
-        "chart_type": chart_type,
-        "interval": interval_key,
-        "overlay_keys": overlay_keys,
-        "oscillator_keys": oscillator_keys,
+        "chart_type": out["chart_type"],
+        "interval": req.interval,
+        "overlay_keys": out["overlay_keys"],
+        "oscillator_keys": out["oscillator_keys"],
         "data_points": len(df),
         "date_range": [fmt_ts(df.index[0]), fmt_ts(df.index[-1])],
         "notes": notes,
@@ -335,3 +231,138 @@ def backtest(req: BacktestRequest):
         "equity_series": equity_series,
         "trades": trades,
     }
+
+
+# ======================================================================
+# 每個使用者自己的 Telegram Bot 設定
+# ======================================================================
+class TelegramConfigRequest(BaseModel):
+    bot_token: str
+
+
+@app.post("/api/telegram/config")
+def save_telegram_config(req: TelegramConfigRequest, user=Depends(auth.get_current_user)):
+    bot_token = req.bot_token.strip()
+    if not bot_token:
+        raise HTTPException(status_code=422, detail="請輸入 Bot Token")
+
+    bot_info = telegram_client.get_me(bot_token)
+    if not bot_info:
+        raise HTTPException(status_code=422, detail="這組 Bot Token 無效，請確認是否直接從 BotFather 複製完整")
+
+    bot_username = bot_info.get("username", "")
+    webhook_secret = db.save_bot_token(user["id"], bot_token, bot_username)
+
+    webhook_registered = False
+    webhook_error = None
+    if PUBLIC_BACKEND_URL:
+        webhook_url = f"{PUBLIC_BACKEND_URL}/api/telegram/webhook/{webhook_secret}"
+        webhook_registered = telegram_client.set_webhook(bot_token, webhook_url, webhook_secret)
+        if not webhook_registered:
+            webhook_error = "自動註冊 webhook 失敗，請稍後再試一次儲存"
+    else:
+        webhook_error = "伺服器尚未設定 PUBLIC_BACKEND_URL，無法自動註冊 webhook，請聯絡管理員"
+
+    return {
+        "ok": True,
+        "bot_username": bot_username,
+        "webhook_registered": webhook_registered,
+        "webhook_error": webhook_error,
+    }
+
+
+@app.get("/api/telegram/status")
+def telegram_status(user=Depends(auth.get_current_user)):
+    cfg = db.get_telegram_config(user["id"])
+    if not cfg:
+        return {"configured": False, "linked": False, "bot_username": None}
+    return {
+        "configured": bool(cfg.get("bot_token")),
+        "linked": bool(cfg.get("chat_id")),
+        "bot_username": cfg.get("bot_username"),
+    }
+
+
+@app.delete("/api/telegram/config")
+def remove_telegram_config(user=Depends(auth.get_current_user)):
+    cfg = db.get_telegram_config(user["id"])
+    if cfg and cfg.get("bot_token"):
+        telegram_client.delete_webhook(cfg["bot_token"])
+    db.unlink_telegram(user["id"])
+    return {"ok": True}
+
+
+@app.post("/api/telegram/webhook/{webhook_secret}")
+async def telegram_webhook(webhook_secret: str, request: Request):
+    cfg = db.get_telegram_config_by_webhook_secret(webhook_secret)
+    if not cfg:
+        raise HTTPException(status_code=404, detail="unknown webhook")
+
+    header_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if header_secret != webhook_secret:
+        raise HTTPException(status_code=403, detail="invalid secret")
+
+    update = await request.json()
+    chat_id, text = telegram_client.extract_chat_id_and_text(update)
+    if not chat_id:
+        return {"ok": True}
+
+    bot_token = cfg["bot_token"]
+    if not cfg.get("chat_id"):
+        db.set_chat_id(cfg["user_id"], chat_id)
+        telegram_client.send_message(bot_token, chat_id, "✅ 連結成功！之後你在追蹤清單設定的訊號會通知到這裡。")
+    else:
+        telegram_client.send_message(bot_token, chat_id, "已經連結囉，訊號出現時我會主動通知你 🙂")
+
+    return {"ok": True}
+
+
+# ======================================================================
+# 追蹤清單（各自的）
+# ======================================================================
+class WatchlistCreate(BaseModel):
+    market: Literal["us", "tw", "crypto"]
+    ticker: str
+    strategy: Literal["bollinger", "ma3", "ma_cross", "donchian", "rsi", "macd"]
+    interval: Literal["1d", "4h", "1h", "15m", "5m", "1m"] = "1d"
+    allow_short: bool = True
+    params: Dict[str, Any] = Field(default_factory=dict)
+
+
+@app.get("/api/watchlist")
+def get_watchlist(user=Depends(auth.get_current_user)):
+    items = db.list_watchlist(user_id=user["id"])
+    for it in items:
+        it["strategy_label"] = STRATEGY_LABELS.get(it["strategy"], it["strategy"])
+    return {"items": items}
+
+
+@app.post("/api/watchlist")
+def create_watchlist_item(req: WatchlistCreate, user=Depends(auth.get_current_user)):
+    if not req.ticker.strip():
+        raise HTTPException(status_code=422, detail="代碼不可為空")
+    params = {**DEFAULT_PARAMS.get(req.strategy, {}), **req.params}
+    item_id = db.add_watchlist_item(user["id"], req.market, req.ticker.strip(), req.strategy, req.interval,
+                                     params, req.allow_short)
+    return {"id": item_id}
+
+
+def _get_owned_item_or_404(item_id: int, user_id: int):
+    item = db.get_watchlist_item(item_id)
+    if not item or item["user_id"] != user_id:
+        raise HTTPException(status_code=404, detail="找不到這個追蹤項目")
+    return item
+
+
+@app.patch("/api/watchlist/{item_id}")
+def toggle_watchlist_item(item_id: int, enabled: bool, user=Depends(auth.get_current_user)):
+    _get_owned_item_or_404(item_id, user["id"])
+    db.set_watchlist_enabled(item_id, enabled)
+    return {"ok": True}
+
+
+@app.delete("/api/watchlist/{item_id}")
+def remove_watchlist_item(item_id: int, user=Depends(auth.get_current_user)):
+    _get_owned_item_or_404(item_id, user["id"])
+    db.delete_watchlist_item(item_id)
+    return {"ok": True}
