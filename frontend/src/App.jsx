@@ -16,9 +16,15 @@ function defaultDates() {
   return { start: fmt(start), end: fmt(end) };
 }
 
+const STRATEGY_SUBTITLE = {
+  bollinger: '擠壓突破 · 貼軌趨勢跟隨 · W底/M頭背離確認',
+  ma3: 'EMA快中慢三線排列 · 黃金/死亡交叉 · 貼刀拉回進場',
+};
+
 export default function App() {
   const { start, end } = defaultDates();
   const [form, setForm] = useState({
+    strategy: 'bollinger',
     market: 'us',
     ticker: 'SPY',
     interval: '1d',
@@ -26,6 +32,9 @@ export default function App() {
     end,
     capital: 1000000,
     allow_short: true,
+    ma_fast: 20,
+    ma_mid: 60,
+    ma_slow: 240,
   });
 
   const [loading, setLoading] = useState(false);
@@ -39,6 +48,9 @@ export default function App() {
       const payload = {
         ...form,
         capital: Number(form.capital),
+        ma_fast: Number(form.ma_fast),
+        ma_mid: Number(form.ma_mid),
+        ma_slow: Number(form.ma_slow),
         end: form.end || undefined,
       };
       const { data } = await axios.post(`${API_BASE_URL}/api/backtest`, payload);
@@ -62,10 +74,10 @@ export default function App() {
             <line x1="17" y1="2" x2="17" y2="32" stroke="#6ee7df" strokeWidth="0.6" opacity="0.6" />
           </svg>
         </div>
-        <h1>黑鑽布林策略回測</h1>
+        <h1>黑鑽策略回測</h1>
       </div>
       <p className="hero-sub">
-        擠壓突破 · 貼軌趨勢跟隨 · W底/M頭背離確認 — 輸入任一美股、台股或加密貨幣代碼，立即檢視策略歷史績效。
+        {STRATEGY_SUBTITLE[form.strategy]} — 輸入任一美股、台股或加密貨幣代碼，立即檢視策略歷史績效。
       </p>
 
       <ControlPanel form={form} setForm={setForm} onSubmit={runBacktest} loading={loading} />
@@ -92,14 +104,14 @@ export default function App() {
       {result && !loading && (
         <>
           <MetricsGrid metrics={result.metrics} />
-          <PriceChart priceSeries={result.price_series} trades={result.trades} />
+          <PriceChart priceSeries={result.price_series} trades={result.trades} strategy={result.strategy} />
           <EquityChart equitySeries={result.equity_series} />
           <TradesTable trades={result.trades} />
         </>
       )}
 
       <footer className="note">
-        資料來源：Yahoo Finance（經 yfinance 抓取）。策略邏輯為教學影片重點之量化重建，僅供研究與策略驗證使用，不構成投資建議；歷史績效不代表未來表現。
+        資料來源：Yahoo Finance（經 yfinance 抓取）。策略邏輯為量化重建，僅供研究與策略驗證使用，不構成投資建議；歷史績效不代表未來表現。
       </footer>
     </div>
   );

@@ -15,6 +15,11 @@ const INTERVAL_META = {
   '1m': { label: '1分K', hint: 'Yahoo 最多回溯7天' },
 };
 
+const STRATEGY_META = {
+  bollinger: { label: '布林通道策略' },
+  ma3: { label: '均線三刀流' },
+};
+
 export default function ControlPanel({ form, setForm, onSubmit, loading }) {
   const update = (key) => (e) => {
     const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
@@ -25,6 +30,15 @@ export default function ControlPanel({ form, setForm, onSubmit, loading }) {
 
   return (
     <div className="panel control-panel">
+      <div className="field">
+        <label>策略</label>
+        <select value={form.strategy} onChange={update('strategy')}>
+          {Object.entries(STRATEGY_META).map(([val, { label }]) => (
+            <option key={val} value={val}>{label}</option>
+          ))}
+        </select>
+      </div>
+
       <div className="field">
         <label>市場</label>
         <select value={form.market} onChange={update('market')}>
@@ -72,6 +86,23 @@ export default function ControlPanel({ form, setForm, onSubmit, loading }) {
         <input type="checkbox" id="allow_short" checked={form.allow_short} onChange={update('allow_short')} />
         <label htmlFor="allow_short">允許做空</label>
       </div>
+
+      {form.strategy === 'ma3' && (
+        <>
+          <div className="field">
+            <label>快刀 EMA</label>
+            <input type="number" value={form.ma_fast} onChange={update('ma_fast')} min={2} max={200} />
+          </div>
+          <div className="field">
+            <label>中刀 EMA</label>
+            <input type="number" value={form.ma_mid} onChange={update('ma_mid')} min={5} max={400} />
+          </div>
+          <div className="field">
+            <label>慢刀 EMA</label>
+            <input type="number" value={form.ma_slow} onChange={update('ma_slow')} min={10} max={800} />
+          </div>
+        </>
+      )}
 
       <button className="run-btn" onClick={onSubmit} disabled={loading || !form.ticker.trim()}>
         {loading ? '回測中…' : '執行回測'}
