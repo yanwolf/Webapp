@@ -5,6 +5,7 @@ import { API_BASE_URL } from './config';
 import ControlPanel from './components/ControlPanel';
 import MetricsGrid from './components/MetricsGrid';
 import PriceChart from './components/PriceChart';
+import { RsiChart, MacdChart } from './components/OscillatorChart';
 import EquityChart from './components/EquityChart';
 import TradesTable from './components/TradesTable';
 
@@ -19,6 +20,11 @@ function defaultDates() {
 const STRATEGY_SUBTITLE = {
   bollinger: '擠壓突破 · 貼軌趨勢跟隨 · W底/M頭背離確認',
   ma3: 'EMA快中慢三線排列 · 黃金/死亡交叉 · 貼刀拉回進場',
+  ma_cross: '雙均線黃金/死亡交叉 · 經典趨勢跟隨',
+  donchian: 'N日高低點突破 · 海龜交易法則簡化版',
+  rsi: 'RSI超買超賣反彈 · 經典均值回歸',
+  macd: 'MACD/訊號線交叉 · 經典動能指標',
+  buy_hold: '第一根K棒買進、全程持有到底 · 用來檢驗策略是否真的打敗大盤',
 };
 
 export default function App() {
@@ -35,24 +41,40 @@ export default function App() {
     ma_fast: 20,
     ma_mid: 60,
     ma_slow: 240,
+    cross_fast: 20,
+    cross_slow: 60,
+    cross_ma_type: 'sma',
+    cross_stop_pct: 0.08,
+    donch_entry_window: 20,
+    donch_exit_window: 10,
+    rsi_period: 14,
+    rsi_oversold: 30,
+    rsi_overbought: 70,
+    rsi_stop_pct: 0.06,
+    macd_fast: 12,
+    macd_slow: 26,
+    macd_signal: 9,
+    macd_stop_pct: 0.08,
   });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
 
+  const numericKeys = [
+    'capital', 'ma_fast', 'ma_mid', 'ma_slow',
+    'cross_fast', 'cross_slow', 'cross_stop_pct',
+    'donch_entry_window', 'donch_exit_window',
+    'rsi_period', 'rsi_oversold', 'rsi_overbought', 'rsi_stop_pct',
+    'macd_fast', 'macd_slow', 'macd_signal', 'macd_stop_pct',
+  ];
+
   const runBacktest = async () => {
     setLoading(true);
     setError(null);
     try {
-      const payload = {
-        ...form,
-        capital: Number(form.capital),
-        ma_fast: Number(form.ma_fast),
-        ma_mid: Number(form.ma_mid),
-        ma_slow: Number(form.ma_slow),
-        end: form.end || undefined,
-      };
+      const payload = { ...form, end: form.end || undefined };
+      numericKeys.forEach((k) => { payload[k] = Number(form[k]); });
       const { data } = await axios.post(`${API_BASE_URL}/api/backtest`, payload);
       setResult(data);
     } catch (e) {
@@ -63,6 +85,8 @@ export default function App() {
       setLoading(false);
     }
   };
+
+  const chartType = result?.chart_type;
 
   return (
     <div className="app-shell">
@@ -104,7 +128,22 @@ export default function App() {
       {result && !loading && (
         <>
           <MetricsGrid metrics={result.metrics} />
-          <PriceChart priceSeries={result.price_series} trades={result.trades} strategy={result.strategy} />
+
+          <PriceChart
+            priceSeries={result.price_series}
+            trades={result.trades}
+            chartType={chartType}
+            overlayKeys={result.overlay_keys}
+            strategyLabel={result.strategy_label}
+          />
+
+          {chartType === 'oscillator_rsi' && (
+            <RsiChart priceSeries={result.price_series} oversold={form.rsi_oversold} overbought={form.rsi_overbought} />
+          )}
+          {chartType === 'oscillator_macd' && (
+            <MacdChart priceSeries={result.price_series} />
+          )}
+
           <EquityChart equitySeries={result.equity_series} />
           <TradesTable trades={result.trades} />
         </>
