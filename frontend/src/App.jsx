@@ -21,6 +21,7 @@ export default function App() {
   const [form, setForm] = useState({
     market: 'us',
     ticker: 'SPY',
+    interval: '1d',
     start,
     end,
     capital: 1000000,
@@ -77,6 +78,12 @@ export default function App() {
       )}
 
       {error && <div className="error-box">{error}</div>}
+
+      {result && result.notes && result.notes.length > 0 && (
+        <div className="info-box">
+          {result.notes.map((n, i) => <div key={i}>ℹ️ {n}</div>)}
+        </div>
+      )}
 
       {!result && !loading && !error && (
         <div className="empty-state">設定好參數後按「執行回測」，結果會顯示在這裡</div>

@@ -2,8 +2,17 @@ import React from 'react';
 
 const MARKET_META = {
   us: { label: '美股', placeholder: '例如 SPY / AAPL / QQQ' },
-  tw: { label: '台股', placeholder: '例如 2330 / 0050' },
+  tw: { label: '台股', placeholder: '例如 2330 / 0050 / ^TWII' },
   crypto: { label: '加密貨幣', placeholder: '例如 BTC / ETH' },
+};
+
+const INTERVAL_META = {
+  '1d': { label: '日K', hint: null },
+  '4h': { label: '4小時K', hint: 'Yahoo 最多回溯約2年' },
+  '1h': { label: '1小時K', hint: 'Yahoo 最多回溯約2年' },
+  '15m': { label: '15分K', hint: 'Yahoo 最多回溯60天' },
+  '5m': { label: '5分K', hint: 'Yahoo 最多回溯60天' },
+  '1m': { label: '1分K', hint: 'Yahoo 最多回溯7天' },
 };
 
 export default function ControlPanel({ form, setForm, onSubmit, loading }) {
@@ -11,6 +20,8 @@ export default function ControlPanel({ form, setForm, onSubmit, loading }) {
     const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
     setForm((prev) => ({ ...prev, [key]: val }));
   };
+
+  const intervalHint = INTERVAL_META[form.interval]?.hint;
 
   return (
     <div className="panel control-panel">
@@ -31,6 +42,15 @@ export default function ControlPanel({ form, setForm, onSubmit, loading }) {
           onChange={update('ticker')}
           placeholder={MARKET_META[form.market].placeholder}
         />
+      </div>
+
+      <div className="field">
+        <label>K線週期{intervalHint ? ` · ${intervalHint}` : ''}</label>
+        <select value={form.interval} onChange={update('interval')}>
+          {Object.entries(INTERVAL_META).map(([val, { label }]) => (
+            <option key={val} value={val}>{label}</option>
+          ))}
+        </select>
       </div>
 
       <div className="field">
