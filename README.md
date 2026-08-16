@@ -1,6 +1,6 @@
-# 黑鑽布林策略回測（網站版）
+# 策略實驗室（網站版）
 
-依教學影片重點整理實作的布林通道完整策略，改寫成 FastAPI + React/Vite 的網站版本，
+依教學影片重點整理實作的布林通道完整策略起家，逐步擴充成多策略回測系統，改寫成 FastAPI + React/Vite 的網站版本，
 可輸入美股、台股、加密貨幣代碼即時回測。架構與你現有的 黑鑽選股 / crypto screener 一致，
 可直接部署到 Zeabur。
 
@@ -11,7 +11,7 @@ webapp/
 │   ├── bollinger_strategy.py
 │   ├── requirements.txt
 │   └── Dockerfile
-└── frontend/         React + Vite 前端（暗色系「黑鑽」風格 UI）
+└── frontend/         React + Vite 前端（暗色系金/青配色 UI）
     ├── src/
     └── Dockerfile
 ```

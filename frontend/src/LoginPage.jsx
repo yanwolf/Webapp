@@ -37,12 +37,16 @@ export default function LoginPage({ onLoggedIn }) {
       <div className="hero" style={{ justifyContent: 'center' }}>
         <div className="hero-mark">
           <svg viewBox="0 0 34 34" fill="none">
-            <polygon points="17,2 30,12 24,32 10,32 4,12" stroke="#d4b06a" strokeWidth="1.2" fill="rgba(212,176,106,0.08)" />
-            <polygon points="17,2 30,12 17,17" fill="rgba(110,231,223,0.18)" />
-            <line x1="17" y1="2" x2="17" y2="32" stroke="#6ee7df" strokeWidth="0.6" opacity="0.6" />
+            <circle cx="17" cy="17" r="14" stroke="#d4b06a" strokeWidth="1.2" fill="rgba(212,176,106,0.06)" />
+            <circle cx="17" cy="17" r="10.2" stroke="#6ee7df" strokeWidth="0.5" opacity="0.45" />
+            <polygon points="17,6.5 20.3,17 17,17" fill="#d4b06a" />
+            <polygon points="17,6.5 13.7,17 17,17" fill="#e8cd94" opacity="0.85" />
+            <polygon points="17,27.5 20.3,17 17,17" fill="#6ee7df" opacity="0.65" />
+            <polygon points="17,27.5 13.7,17 17,17" fill="#6ee7df" opacity="0.35" />
+            <circle cx="17" cy="17" r="1.7" fill="#08090b" stroke="#d4b06a" strokeWidth="0.8" />
           </svg>
         </div>
-        <h1>黑鑽策略回測</h1>
+        <h1>策略實驗室</h1>
       </div>
 
       <div className="panel" style={{ marginTop: 24 }}>
