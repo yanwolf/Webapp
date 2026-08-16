@@ -97,6 +97,24 @@ def count_users() -> int:
         return conn.execute("SELECT COUNT(*) AS c FROM users").fetchone()["c"]
 
 
+def list_all_users():
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT u.id, u.username, u.created_at,
+                   tc.chat_id IS NOT NULL AS telegram_linked,
+                   (SELECT COUNT(*) FROM watchlist w WHERE w.user_id = u.id) AS watchlist_count
+            FROM users u
+            LEFT JOIN telegram_config tc ON tc.user_id = u.id
+            ORDER BY u.id ASC
+        """).fetchall()
+        return [dict(r) for r in rows]
+
+
+def delete_user(user_id: int):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+
+
 # ---------------------------------------------------------------- telegram (per user)
 def save_bot_token(user_id: int, bot_token: str, bot_username: str) -> str:
     """儲存/更新使用者的 Bot Token，回傳這個使用者專屬的 webhook_secret"""

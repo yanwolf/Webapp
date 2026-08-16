@@ -10,6 +10,7 @@ import TradesTable from './components/TradesTable';
 import WatchlistPage from './WatchlistPage';
 import ComparePage from './ComparePage';
 import HomePage from './HomePage';
+import AdminPage from './AdminPage';
 import LoginPage from './LoginPage';
 
 function defaultDates() {
@@ -39,6 +40,7 @@ const STRATEGY_SUBTITLE = {
 
 export default function App() {
   const [username, setUsername] = useState(() => localStorage.getItem('username'));
+  const [me, setMe] = useState(null);
   const [tab, setTab] = useState('home');
   const { start, end } = defaultDates();
   const [form, setForm] = useState({
@@ -106,6 +108,11 @@ export default function App() {
     return () => window.removeEventListener('auth-expired', onExpired);
   }, []);
 
+  useEffect(() => {
+    if (!username) { setMe(null); return; }
+    api.get('/api/auth/me').then(({ data }) => setMe(data)).catch(() => setMe(null));
+  }, [username]);
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('username');
@@ -149,6 +156,9 @@ export default function App() {
         <button className={`tab-btn ${tab === 'backtest' ? 'active' : ''}`} onClick={() => setTab('backtest')}>回測</button>
         <button className={`tab-btn ${tab === 'compare' ? 'active' : ''}`} onClick={() => setTab('compare')}>策略比較</button>
         <button className={`tab-btn ${tab === 'watchlist' ? 'active' : ''}`} onClick={() => setTab('watchlist')}>追蹤清單</button>
+        {me?.is_admin && (
+          <button className={`tab-btn ${tab === 'admin' ? 'active' : ''}`} onClick={() => setTab('admin')}>管理員</button>
+        )}
       </div>
 
       {tab === 'home' ? (
@@ -157,6 +167,8 @@ export default function App() {
         <WatchlistPage />
       ) : tab === 'compare' ? (
         <ComparePage />
+      ) : tab === 'admin' ? (
+        <AdminPage currentUserId={me?.id} />
       ) : (
       <>
       <p className="hero-sub">

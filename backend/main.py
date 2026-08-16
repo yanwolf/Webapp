@@ -55,6 +55,7 @@ app.add_middleware(
 MIN_BARS = 60
 SIGNUP_INVITE_CODE = os.environ.get("SIGNUP_INVITE_CODE", "")
 PUBLIC_BACKEND_URL = os.environ.get("PUBLIC_BACKEND_URL", "").rstrip("/")
+MAX_USERS = int(os.environ.get("MAX_USERS", "10"))
 
 
 @app.on_event("startup")
@@ -84,6 +85,8 @@ class LoginRequest(BaseModel):
 
 @app.post("/api/auth/register")
 def register(req: RegisterRequest):
+    if db.count_users() >= MAX_USERS:
+        raise HTTPException(status_code=403, detail=f"目前已達開放註冊上限（{MAX_USERS}人），請聯絡管理員")
     if SIGNUP_INVITE_CODE and req.invite_code != SIGNUP_INVITE_CODE:
         raise HTTPException(status_code=403, detail="邀請碼錯誤")
     if not auth.validate_username(req.username):
@@ -108,7 +111,27 @@ def login(req: LoginRequest):
 
 @app.get("/api/auth/me")
 def me(user=Depends(auth.get_current_user)):
-    return {"id": user["id"], "username": user["username"]}
+    return {"id": user["id"], "username": user["username"], "is_admin": auth.is_admin(user)}
+
+
+# ======================================================================
+# 管理員：使用者管理
+# ======================================================================
+@app.get("/api/admin/users")
+def admin_list_users(admin=Depends(auth.require_admin)):
+    users = db.list_all_users()
+    return {"users": users, "max_users": MAX_USERS, "current_count": len(users)}
+
+
+@app.delete("/api/admin/users/{user_id}")
+def admin_delete_user(user_id: int, admin=Depends(auth.require_admin)):
+    if user_id == admin["id"]:
+        raise HTTPException(status_code=400, detail="不能刪除自己目前登入的帳號")
+    target = db.get_user_by_id(user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="找不到這個使用者")
+    db.delete_user(user_id)
+    return {"ok": True}
 
 
 # ======================================================================

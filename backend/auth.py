@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import bcrypt
 import jwt
-from fastapi import Header, HTTPException
+from fastapi import Depends, Header, HTTPException
 
 import db
 
@@ -20,6 +20,15 @@ JWT_ALG = "HS256"
 JWT_EXPIRE_DAYS = 30
 
 USERNAME_RE = re.compile(r"^[a-zA-Z0-9_\-]{3,20}$")
+
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "")
+
+
+def is_admin(user: dict) -> bool:
+    if ADMIN_USERNAME:
+        return user.get("username") == ADMIN_USERNAME
+    # 沒設定 ADMIN_USERNAME 時，預設第一個註冊的帳號（id=1）視為管理員
+    return user.get("id") == 1
 
 
 def validate_username(username: str) -> bool:
@@ -63,4 +72,10 @@ def get_current_user(authorization: str = Header(None)):
     user = db.get_user_by_id(int(payload["sub"]))
     if not user:
         raise HTTPException(status_code=401, detail="使用者不存在")
+    return user
+
+
+def require_admin(user: dict = Depends(get_current_user)):
+    if not is_admin(user):
+        raise HTTPException(status_code=403, detail="這個功能僅限管理員使用")
     return user
