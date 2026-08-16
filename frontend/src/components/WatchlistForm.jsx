@@ -79,9 +79,15 @@ export default function WatchlistForm({ onAdded }) {
           {Object.entries(INTERVAL_META).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
       </div>
-      <div className="field field-checkbox">
-        <input type="checkbox" id="wl_allow_short" checked={form.allow_short} onChange={update('allow_short')} />
-        <label htmlFor="wl_allow_short">允許做空</label>
+      <div className="field">
+        <label>交易方式</label>
+        <select
+          value={form.allow_short ? 'short' : 'cash'}
+          onChange={(e) => setForm((p) => ({ ...p, allow_short: e.target.value === 'short' }))}
+        >
+          <option value="cash">現股買賣（只做多）</option>
+          <option value="short">現股 + 做空</option>
+        </select>
       </div>
       <button className="run-btn" onClick={submit} disabled={loading || !form.ticker.trim()}>
         {loading ? '新增中…' : '加入追蹤'}

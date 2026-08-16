@@ -51,9 +51,15 @@ export default function CompareForm({ form, setForm, onSubmit, loading }) {
         <label>初始資金</label>
         <input type="number" value={form.capital} onChange={update('capital')} min={1} step={10000} />
       </div>
-      <div className="field field-checkbox">
-        <input type="checkbox" id="cmp_allow_short" checked={form.allow_short} onChange={update('allow_short')} />
-        <label htmlFor="cmp_allow_short">允許做空</label>
+      <div className="field">
+        <label>交易方式</label>
+        <select
+          value={form.allow_short ? 'short' : 'cash'}
+          onChange={(e) => setForm((p) => ({ ...p, allow_short: e.target.value === 'short' }))}
+        >
+          <option value="cash">現股買賣（只做多）</option>
+          <option value="short">現股 + 做空</option>
+        </select>
       </div>
       <button className="run-btn" onClick={onSubmit} disabled={loading || !form.ticker.trim()}>
         {loading ? '比較中…' : '比較所有策略'}

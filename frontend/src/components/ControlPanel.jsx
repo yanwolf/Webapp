@@ -89,9 +89,15 @@ export default function ControlPanel({ form, setForm, onSubmit, loading }) {
       </div>
 
       {form.strategy !== 'buy_hold' && (
-        <div className="field field-checkbox">
-          <input type="checkbox" id="allow_short" checked={form.allow_short} onChange={update('allow_short')} />
-          <label htmlFor="allow_short">允許做空</label>
+        <div className="field">
+          <label>交易方式</label>
+          <select
+            value={form.allow_short ? 'short' : 'cash'}
+            onChange={(e) => setForm((prev) => ({ ...prev, allow_short: e.target.value === 'short' }))}
+          >
+            <option value="cash">現股買賣（只做多）</option>
+            <option value="short">現股 + 做空</option>
+          </select>
         </div>
       )}
 

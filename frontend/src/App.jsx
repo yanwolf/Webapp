@@ -9,6 +9,7 @@ import EquityChart from './components/EquityChart';
 import TradesTable from './components/TradesTable';
 import WatchlistPage from './WatchlistPage';
 import ComparePage from './ComparePage';
+import HomePage from './HomePage';
 import LoginPage from './LoginPage';
 
 function defaultDates() {
@@ -38,7 +39,7 @@ const STRATEGY_SUBTITLE = {
 
 export default function App() {
   const [username, setUsername] = useState(() => localStorage.getItem('username'));
-  const [tab, setTab] = useState('backtest');
+  const [tab, setTab] = useState('home');
   const { start, end } = defaultDates();
   const [form, setForm] = useState({
     strategy: 'bollinger',
@@ -140,12 +141,15 @@ export default function App() {
       </div>
 
       <div className="tab-row">
+        <button className={`tab-btn ${tab === 'home' ? 'active' : ''}`} onClick={() => setTab('home')}>首頁</button>
         <button className={`tab-btn ${tab === 'backtest' ? 'active' : ''}`} onClick={() => setTab('backtest')}>回測</button>
         <button className={`tab-btn ${tab === 'compare' ? 'active' : ''}`} onClick={() => setTab('compare')}>策略比較</button>
         <button className={`tab-btn ${tab === 'watchlist' ? 'active' : ''}`} onClick={() => setTab('watchlist')}>追蹤清單</button>
       </div>
 
-      {tab === 'watchlist' ? (
+      {tab === 'home' ? (
+        <HomePage onNavigate={setTab} />
+      ) : tab === 'watchlist' ? (
         <WatchlistPage />
       ) : tab === 'compare' ? (
         <ComparePage />
