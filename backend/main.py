@@ -36,6 +36,7 @@ from strategy_runner import (
     run_strategy, STRATEGY_LABELS, DEFAULT_PARAMS, min_bars_for_strategy,
     ALL_SIGNAL_STRATEGIES, STYLE_PRESETS,
 )
+from ticker_search import search_tw, search_us, search_crypto
 from scheduler import start_scheduler
 
 logging.basicConfig(level=logging.INFO)
@@ -162,6 +163,33 @@ def _req_to_params(req: BacktestRequest) -> Dict[str, Any]:
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/api/search-ticker")
+def search_ticker(market: Literal["us", "tw", "crypto"], query: str, user=Depends(auth.get_current_user)):
+    query = query.strip()
+    if not query:
+        return {"results": [], "available": True}
+
+    if market == "tw":
+        results = search_tw(query)
+        if results is None:
+            return {"results": [], "available": False, "message": "尚未設定 FINMIND_API_TOKEN，無法查詢台股代號/名稱"}
+        return {"results": results, "available": True}
+
+    if market == "us":
+        results = search_us(query)
+        if results is None:
+            return {"results": [], "available": False, "message": "尚未設定 TWELVE_DATA_API_KEY，無法查詢美股代號/名稱"}
+        return {"results": results, "available": True}
+
+    if market == "crypto":
+        results = search_crypto(query)
+        if results is None:
+            return {"results": [], "available": False, "message": "查詢加密貨幣清單失敗，請稍後再試"}
+        return {"results": results, "available": True}
+
+    return {"results": [], "available": True}
 
 
 @app.post("/api/backtest")

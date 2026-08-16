@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import api from '../api';
+import TickerInput from './TickerInput';
 
 const MARKET_META = {
   us: { label: '美股', placeholder: '例如 SPY / AAPL' },
@@ -59,7 +60,12 @@ export default function WatchlistForm({ onAdded }) {
       </div>
       <div className="field">
         <label>代碼</label>
-        <input type="text" value={form.ticker} onChange={update('ticker')} placeholder={MARKET_META[form.market].placeholder} />
+        <TickerInput
+          market={form.market}
+          value={form.ticker}
+          onChange={(v) => setForm((p) => ({ ...p, ticker: v }))}
+          placeholder={MARKET_META[form.market].placeholder}
+        />
       </div>
       <div className="field">
         <label>策略</label>

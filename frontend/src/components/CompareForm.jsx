@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import TickerInput from './TickerInput';
 
 const MARKET_META = {
   us: { label: '美股', placeholder: '例如 SPY / AAPL / QQQ' },
@@ -31,7 +32,12 @@ export default function CompareForm({ form, setForm, onSubmit, loading }) {
       </div>
       <div className="field">
         <label>代碼</label>
-        <input type="text" value={form.ticker} onChange={update('ticker')} placeholder={MARKET_META[form.market].placeholder} />
+        <TickerInput
+          market={form.market}
+          value={form.ticker}
+          onChange={(v) => setForm((p) => ({ ...p, ticker: v }))}
+          placeholder={MARKET_META[form.market].placeholder}
+        />
       </div>
       <div className="field">
         <label>開始日期</label>

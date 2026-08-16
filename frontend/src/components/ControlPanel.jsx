@@ -1,4 +1,5 @@
 import React from 'react';
+import TickerInput from './TickerInput';
 
 const MARKET_META = {
   us: { label: '美股', placeholder: '例如 SPY / AAPL / QQQ' },
@@ -55,10 +56,10 @@ export default function ControlPanel({ form, setForm, onSubmit, loading }) {
 
       <div className="field">
         <label>代碼</label>
-        <input
-          type="text"
+        <TickerInput
+          market={form.market}
           value={form.ticker}
-          onChange={update('ticker')}
+          onChange={(v) => setForm((prev) => ({ ...prev, ticker: v }))}
           placeholder={MARKET_META[form.market].placeholder}
         />
       </div>
