@@ -166,7 +166,7 @@ def health():
 
 @app.post("/api/backtest")
 def backtest(req: BacktestRequest, user=Depends(auth.get_current_user)):
-    df, resolved, notes, err = fetch_ohlcv(req.market, req.ticker, req.interval, req.start, req.end)
+    df, resolved, notes, err, source = fetch_ohlcv(req.market, req.ticker, req.interval, req.start, req.end)
     if err:
         status = 404 if "抓不到" in err else 502
         raise HTTPException(status_code=status, detail=err)
@@ -220,6 +220,7 @@ def backtest(req: BacktestRequest, user=Depends(auth.get_current_user)):
 
     return {
         "ticker_resolved": resolved,
+        "data_source": source,
         "strategy": req.strategy,
         "strategy_label": STRATEGY_LABELS.get(req.strategy, req.strategy),
         "chart_type": out["chart_type"],
@@ -257,7 +258,7 @@ def compare_strategies(req: CompareRequest, user=Depends(auth.get_current_user))
     preset = STYLE_PRESETS[req.style]
     interval = req.interval or preset["interval"]
 
-    df, resolved, notes, err = fetch_ohlcv(req.market, req.ticker, interval, req.start, req.end)
+    df, resolved, notes, err, source = fetch_ohlcv(req.market, req.ticker, interval, req.start, req.end)
     if err:
         status = 404 if "抓不到" in err else 502
         raise HTTPException(status_code=status, detail=err)
@@ -310,6 +311,7 @@ def compare_strategies(req: CompareRequest, user=Depends(auth.get_current_user))
 
     return {
         "ticker_resolved": resolved,
+        "data_source": source,
         "style": req.style,
         "style_label": preset["label"],
         "interval": interval,

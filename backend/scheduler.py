@@ -53,7 +53,7 @@ def check_one_item(item: dict, now: datetime):
     params = item["params"]
 
     start = _start_date_for(interval)
-    df, resolved, notes, err = fetch_ohlcv(market, ticker, interval, start)
+    df, resolved, notes, err, source = fetch_ohlcv(market, ticker, interval, start)
     if err or df is None:
         logger.warning(f"[watchlist#{item['id']}] 抓資料失敗: {err}")
         db.update_watchlist_check_result(item["id"], now.isoformat())

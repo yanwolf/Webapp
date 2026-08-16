@@ -19,6 +19,13 @@ function defaultDates() {
   return { start: fmt(start), end: fmt(end) };
 }
 
+const DATA_SOURCE_LABELS = {
+  finmind: 'FinMind（台股）',
+  twelve_data: 'Twelve Data（美股）',
+  binance: 'Binance（加密貨幣）',
+  yfinance: 'Yahoo Finance（備援）',
+};
+
 const STRATEGY_SUBTITLE = {
   bollinger: '擠壓突破 · 貼軌趨勢跟隨 · W底/M頭背離確認',
   ma3: 'EMA快中慢三線排列 · 黃金/死亡交叉 · 貼刀拉回進場',
@@ -171,6 +178,9 @@ export default function App() {
 
       {result && !loading && (
         <>
+          <div style={{ color: 'var(--text-faint)', fontSize: 12, marginBottom: 10 }}>
+            資料來源：{DATA_SOURCE_LABELS[result.data_source] || result.data_source || '未知'}
+          </div>
           <MetricsGrid metrics={result.metrics} />
 
           <PriceChart

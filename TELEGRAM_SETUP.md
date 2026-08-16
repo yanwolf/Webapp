@@ -22,6 +22,25 @@ DB_PATH=/app/data/app.db
 
 **PUBLIC_BACKEND_URL** 是讓系統知道「自己的網址是什麼」，這樣使用者貼 Bot Token 進來時，才能自動幫他註冊 Telegram webhook（不用再手動跑 curl 網址那一步）。
 
+## 一b、（建議）資料源升級：FinMind + Twelve Data + Binance
+
+之前完全依賴 Yahoo Finance（yfinance），常遇到雲端伺服器被暫時封鎖的問題。現在改成：
+- **台股日K** → 優先用 FinMind
+- **美股** → 優先用 Twelve Data
+- **加密貨幣** → 優先用 Binance 公開API（不需要金鑰）
+- 任何一個沒設定金鑰、或抓取失敗，會**自動退回 yfinance**，不會讓網站壞掉；台股的分K/小時K目前還是直接用 yfinance（FinMind 分K資料可靠度尚未驗證）
+
+要啟用，加這兩個環境變數（都是免費申請，不申請也完全沒問題，系統會直接用 yfinance）：
+```
+FINMIND_API_TOKEN=去 https://finmindtrade.com 免費註冊拿到的Token
+TWELVE_DATA_API_KEY=去 https://twelvedata.com 免費註冊拿到的Key
+```
+- FinMind 免費額度：每小時 600 次請求
+- Twelve Data 免費額度：每天 800 次請求
+- Binance 不需要金鑰，直接可用
+
+回測結果畫面現在會顯示「資料來源」，可以確認新資料源有沒有生效。
+
 ## 二、加掛 Volume（跟之前一樣，必須做）
 
 backend 服務設定裡找 **Volume**，掛載到 `/app/data`。沒加的話帳號、追蹤清單、Bot 設定每次重新部署都會消失。

@@ -3,6 +3,13 @@ import api from './api';
 import CompareForm from './components/CompareForm';
 import CompareTable from './components/CompareTable';
 
+const DATA_SOURCE_LABELS = {
+  finmind: 'FinMind（台股）',
+  twelve_data: 'Twelve Data（美股）',
+  binance: 'Binance（加密貨幣）',
+  yfinance: 'Yahoo Finance（備援）',
+};
+
 function defaultDates() {
   const end = new Date();
   const start = new Date();
@@ -60,7 +67,14 @@ export default function ComparePage() {
         <div className="empty-state">設定好參數後按「比較所有策略」，結果會顯示在這裡</div>
       )}
 
-      {data && !loading && <CompareTable data={data} />}
+      {data && !loading && (
+        <>
+          <div style={{ color: 'var(--text-faint)', fontSize: 12, marginBottom: 10 }}>
+            資料來源：{DATA_SOURCE_LABELS[data.data_source] || data.data_source || '未知'}
+          </div>
+          <CompareTable data={data} />
+        </>
+      )}
 
       <footer className="note">
         提醒：這是歷史回測排名，不代表未來績效一定維持同樣順序。短沖用1小時K，歷史資料受 Yahoo Finance 限制約只能回溯2年，樣本數較少時排名的參考價值會降低；長線波段用日K資料較長，統計上更可信一些。
