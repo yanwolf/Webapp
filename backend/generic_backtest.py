@@ -4,26 +4,45 @@
 ====================
 給定含有以下欄位的 DataFrame，即可執行回測（單一部位，long/short 二選一）：
   entry_long / entry_short / exit_long / exit_short  (布林值欄位)
-停損可用兩種方式之一：
-  stop_pct     固定百分比停損（相對進場價）
-  stop_col_*   逐列指定停損價格欄位（例如唐奇安通道下軌）
+
+停損可用以下任一種方式（依優先順序）：
+  stop_col_*      逐列指定停損價格欄位（例如唐奇安通道下軌）
+  atr_stop_mult   進場時的 ATR × 倍數 當停損距離（需要 df 有 atr_col 欄位）
+  stop_pct        固定百分比停損（相對進場價）
+
+停利（可選，通常搭配 ATR 停損一起用，形成固定風報比）：
+  atr_target_mult 進場時的 ATR × 倍數 當停利距離
 """
+import math
 import pandas as pd
 
 
 def run_generic_backtest(df: pd.DataFrame, allow_short: bool = True,
                           fee_bps: float = 5, init_capital: float = 1_000_000.0,
                           stop_pct: float = None,
-                          stop_col_long: str = None, stop_col_short: str = None) -> dict:
+                          stop_col_long: str = None, stop_col_short: str = None,
+                          atr_stop_mult: float = None, atr_target_mult: float = None,
+                          atr_col: str = "atr") -> dict:
     position = 0
     entry_price = None
     entry_date = None
     stop_price = None
+    target_price = None
 
     cash = init_capital
     shares = 0.0
     equity_curve = []
     trades = []
+
+    has_atr = atr_col in df.columns
+
+    def _atr_at(row):
+        if not has_atr:
+            return None
+        v = row.get(atr_col)
+        if v is None or (isinstance(v, float) and math.isnan(v)):
+            return None
+        return v
 
     idx = df.index
     for i in range(1, len(df)):
@@ -36,24 +55,36 @@ def run_generic_backtest(df: pd.DataFrame, allow_short: bool = True,
                 position = 1
                 entry_price = price
                 entry_date = date
+                atr_val = _atr_at(row)
+
                 if stop_col_long:
                     stop_price = row.get(stop_col_long)
+                elif atr_stop_mult and atr_val is not None:
+                    stop_price = entry_price - atr_stop_mult * atr_val
                 elif stop_pct:
                     stop_price = entry_price * (1 - stop_pct)
                 else:
                     stop_price = None
+
+                target_price = entry_price + atr_target_mult * atr_val if (atr_target_mult and atr_val is not None) else None
                 shares = (cash * (1 - fee_bps / 10000)) / price
                 cash = 0.0
             elif allow_short and row.get("entry_short", False):
                 position = -1
                 entry_price = price
                 entry_date = date
+                atr_val = _atr_at(row)
+
                 if stop_col_short:
                     stop_price = row.get(stop_col_short)
+                elif atr_stop_mult and atr_val is not None:
+                    stop_price = entry_price + atr_stop_mult * atr_val
                 elif stop_pct:
                     stop_price = entry_price * (1 + stop_pct)
                 else:
                     stop_price = None
+
+                target_price = entry_price - atr_target_mult * atr_val if (atr_target_mult and atr_val is not None) else None
                 shares = (cash * (1 - fee_bps / 10000)) / price
                 cash = 0.0
 
@@ -63,6 +94,9 @@ def run_generic_backtest(df: pd.DataFrame, allow_short: bool = True,
             if stop_price is not None and row["Low"] <= stop_price:
                 exit_now = True
                 exit_price = stop_price
+            elif target_price is not None and row["High"] >= target_price:
+                exit_now = True
+                exit_price = target_price
             elif row.get("exit_long", False):
                 exit_now = True
                 exit_price = price
@@ -77,6 +111,7 @@ def run_generic_backtest(df: pd.DataFrame, allow_short: bool = True,
                 shares = 0.0
                 position = 0
                 stop_price = None
+                target_price = None
 
         elif position == -1:
             exit_now = False
@@ -84,6 +119,9 @@ def run_generic_backtest(df: pd.DataFrame, allow_short: bool = True,
             if stop_price is not None and row["High"] >= stop_price:
                 exit_now = True
                 exit_price = stop_price
+            elif target_price is not None and row["Low"] <= target_price:
+                exit_now = True
+                exit_price = target_price
             elif row.get("exit_short", False):
                 exit_now = True
                 exit_price = price
@@ -98,6 +136,7 @@ def run_generic_backtest(df: pd.DataFrame, allow_short: bool = True,
                 shares = 0.0
                 position = 0
                 stop_price = None
+                target_price = None
 
         if position == 1:
             mtm = shares * price

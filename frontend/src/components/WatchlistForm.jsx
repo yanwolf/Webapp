@@ -15,6 +15,8 @@ const STRATEGY_META = {
   donchian: '唐奇安通道突破',
   rsi: 'RSI 超買超賣',
   macd: 'MACD 動量策略',
+  atr_channel: 'ATR 通道突破',
+  fvg: 'FVG 缺口回補',
 };
 
 const INTERVAL_META = {

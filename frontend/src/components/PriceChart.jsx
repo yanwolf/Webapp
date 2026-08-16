@@ -11,12 +11,14 @@ const OVERLAY_COLORS = {
   ema_fast: '#ec5f5f', ema_mid: '#d4b06a', ema_slow: '#6ee7df',
   ma_fast: '#ec5f5f', ma_slow: '#6ee7df',
   donch_upper_entry: '#6ee7df', donch_lower_entry: '#6ee7df',
+  atr_mid: '#d4b06a', atr_upper: '#6ee7df', atr_lower: '#6ee7df',
 };
 const OVERLAY_LABELS = {
   mid: '中軌', upper: '上軌', lower: '下軌',
   ema_fast: '快刀', ema_mid: '中刀', ema_slow: '慢刀',
   ma_fast: '快線', ma_slow: '慢線',
   donch_upper_entry: '通道上緣', donch_lower_entry: '通道下緣',
+  atr_mid: '中軌', atr_upper: '通道上緣', atr_lower: '通道下緣',
 };
 
 function Triangle({ cx, cy, up, color }) {

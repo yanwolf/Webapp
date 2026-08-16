@@ -23,8 +23,12 @@ const STRATEGY_META = {
   donchian: { label: '唐奇安通道突破' },
   rsi: { label: 'RSI 超買超賣' },
   macd: { label: 'MACD 動量策略' },
+  atr_channel: { label: 'ATR 通道突破' },
+  fvg: { label: 'FVG 缺口回補' },
   buy_hold: { label: '買進持有（基準）' },
 };
+
+const STRATEGIES_WITH_STOP_CHOICE = ['ma_cross', 'rsi', 'macd'];
 
 export default function ControlPanel({ form, setForm, onSubmit, loading }) {
   const update = (key) => (e) => {
@@ -135,10 +139,6 @@ export default function ControlPanel({ form, setForm, onSubmit, loading }) {
             <label>慢線週期</label>
             <input type="number" value={form.cross_slow} onChange={update('cross_slow')} min={5} max={400} />
           </div>
-          <div className="field">
-            <label>停損% (0=不設)</label>
-            <input type="number" value={form.cross_stop_pct} onChange={update('cross_stop_pct')} min={0} max={0.5} step={0.01} />
-          </div>
         </>
       )}
 
@@ -169,10 +169,6 @@ export default function ControlPanel({ form, setForm, onSubmit, loading }) {
             <label>超買門檻</label>
             <input type="number" value={form.rsi_overbought} onChange={update('rsi_overbought')} min={51} max={99} />
           </div>
-          <div className="field">
-            <label>停損% (0=不設)</label>
-            <input type="number" value={form.rsi_stop_pct} onChange={update('rsi_stop_pct')} min={0} max={0.5} step={0.01} />
-          </div>
         </>
       )}
 
@@ -190,9 +186,75 @@ export default function ControlPanel({ form, setForm, onSubmit, loading }) {
             <label>訊號線 EMA</label>
             <input type="number" value={form.macd_signal} onChange={update('macd_signal')} min={2} max={100} />
           </div>
+        </>
+      )}
+
+      {/* 均線交叉 / RSI / MACD 共用的停損設定 */}
+      {STRATEGIES_WITH_STOP_CHOICE.includes(form.strategy) && (
+        <>
           <div className="field">
-            <label>停損% (0=不設)</label>
-            <input type="number" value={form.macd_stop_pct} onChange={update('macd_stop_pct')} min={0} max={0.5} step={0.01} />
+            <label>停損方式</label>
+            <select value={form.stop_type} onChange={update('stop_type')}>
+              <option value="pct">固定百分比</option>
+              <option value="atr">ATR 動態停損</option>
+              <option value="none">不設停損</option>
+            </select>
+          </div>
+          {form.stop_type === 'pct' && (
+            <div className="field">
+              <label>停損百分比</label>
+              <input type="number" value={form.stop_pct} onChange={update('stop_pct')} min={0.01} max={0.5} step={0.01} />
+            </div>
+          )}
+          {form.stop_type === 'atr' && (
+            <>
+              <div className="field">
+                <label>ATR 週期</label>
+                <input type="number" value={form.atr_period} onChange={update('atr_period')} min={2} max={100} />
+              </div>
+              <div className="field">
+                <label>ATR 倍數</label>
+                <input type="number" value={form.atr_mult} onChange={update('atr_mult')} min={0.5} max={10} step={0.1} />
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      {form.strategy === 'atr_channel' && (
+        <>
+          <div className="field">
+            <label>ATR 週期</label>
+            <input type="number" value={form.atr_ch_period} onChange={update('atr_ch_period')} min={2} max={100} />
+          </div>
+          <div className="field">
+            <label>中軌 EMA 週期</label>
+            <input type="number" value={form.atr_ch_ma_window} onChange={update('atr_ch_ma_window')} min={5} max={200} />
+          </div>
+          <div className="field">
+            <label>通道寬度（ATR倍數）</label>
+            <input type="number" value={form.atr_ch_mult} onChange={update('atr_ch_mult')} min={0.5} max={10} step={0.1} />
+          </div>
+        </>
+      )}
+
+      {form.strategy === 'fvg' && (
+        <>
+          <div className="field">
+            <label>缺口回補等待K棒數</label>
+            <input type="number" value={form.fvg_max_wait} onChange={update('fvg_max_wait')} min={3} max={100} />
+          </div>
+          <div className="field">
+            <label>ATR 週期</label>
+            <input type="number" value={form.fvg_atr_period} onChange={update('fvg_atr_period')} min={2} max={100} />
+          </div>
+          <div className="field">
+            <label>停損（ATR倍數）</label>
+            <input type="number" value={form.fvg_atr_stop_mult} onChange={update('fvg_atr_stop_mult')} min={0.5} max={10} step={0.1} />
+          </div>
+          <div className="field">
+            <label>停利（ATR倍數）</label>
+            <input type="number" value={form.fvg_atr_target_mult} onChange={update('fvg_atr_target_mult')} min={0.5} max={20} step={0.1} />
           </div>
         </>
       )}

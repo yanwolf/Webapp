@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 """MACD 動量策略（經典趨勢動能指標）"""
 import pandas as pd
+from atr_utils import compute_atr
 
 
-def compute_macd_signals(df: pd.DataFrame, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.DataFrame:
+def compute_macd_signals(df: pd.DataFrame, fast: int = 12, slow: int = 26, signal: int = 9,
+                          atr_period: int = 14) -> pd.DataFrame:
     df = df.copy()
+    df["atr"] = compute_atr(df, atr_period)
     ema_fast = df["Close"].ewm(span=fast, adjust=False).mean()
     ema_slow = df["Close"].ewm(span=slow, adjust=False).mean()
     df["macd"] = ema_fast - ema_slow

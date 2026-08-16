@@ -140,7 +140,8 @@ def admin_delete_user(user_id: int, admin=Depends(auth.require_admin)):
 class BacktestRequest(BaseModel):
     market: Literal["us", "tw", "crypto"] = Field(..., description="市場別")
     ticker: str
-    strategy: Literal["bollinger", "ma3", "ma_cross", "donchian", "rsi", "macd", "buy_hold"] = Field("bollinger")
+    strategy: Literal["bollinger", "ma3", "ma_cross", "donchian", "rsi", "macd",
+                       "atr_channel", "fvg", "buy_hold"] = Field("bollinger")
     interval: Literal["1d", "4h", "1h", "15m", "5m", "1m"] = Field("1d")
     start: str = Field("2015-01-01")
     end: Optional[str] = Field(None)
@@ -156,17 +157,31 @@ class BacktestRequest(BaseModel):
     cross_fast: int = Field(20, ge=2, le=200)
     cross_slow: int = Field(60, ge=5, le=400)
     cross_ma_type: Literal["sma", "ema"] = Field("sma")
-    cross_stop_pct: float = Field(0.08, ge=0.0, le=0.5)
     donch_entry_window: int = Field(20, ge=5, le=200)
     donch_exit_window: int = Field(10, ge=3, le=200)
     rsi_period: int = Field(14, ge=2, le=100)
     rsi_oversold: float = Field(30, ge=1, le=49)
     rsi_overbought: float = Field(70, ge=51, le=99)
-    rsi_stop_pct: float = Field(0.06, ge=0.0, le=0.5)
     macd_fast: int = Field(12, ge=2, le=100)
     macd_slow: int = Field(26, ge=3, le=200)
     macd_signal: int = Field(9, ge=2, le=100)
-    macd_stop_pct: float = Field(0.08, ge=0.0, le=0.5)
+
+    # 均線交叉 / RSI / MACD 共用的停損設定（同一次請求只會用其中一組策略，欄位共用不衝突）
+    stop_type: Literal["pct", "atr", "none"] = Field("pct", description="停損類型")
+    stop_pct: float = Field(0.08, ge=0.0, le=0.5)
+    atr_period: int = Field(14, ge=2, le=100)
+    atr_mult: float = Field(2.0, ge=0.5, le=10.0)
+
+    # ATR 通道突破策略
+    atr_ch_period: int = Field(14, ge=2, le=100)
+    atr_ch_ma_window: int = Field(20, ge=5, le=200)
+    atr_ch_mult: float = Field(2.0, ge=0.5, le=10.0)
+
+    # FVG 缺口回補策略
+    fvg_atr_period: int = Field(14, ge=2, le=100)
+    fvg_max_wait: int = Field(20, ge=3, le=100)
+    fvg_atr_stop_mult: float = Field(1.5, ge=0.5, le=10.0)
+    fvg_atr_target_mult: float = Field(3.0, ge=0.5, le=20.0)
 
 
 def _req_to_params(req: BacktestRequest) -> Dict[str, Any]:
@@ -174,12 +189,13 @@ def _req_to_params(req: BacktestRequest) -> Dict[str, Any]:
         bb_window=req.bb_window, bb_std=req.bb_std, vol_mult=req.vol_mult,
         ma_fast=req.ma_fast, ma_mid=req.ma_mid, ma_slow=req.ma_slow,
         cross_fast=req.cross_fast, cross_slow=req.cross_slow, cross_ma_type=req.cross_ma_type,
-        cross_stop_pct=req.cross_stop_pct,
         donch_entry_window=req.donch_entry_window, donch_exit_window=req.donch_exit_window,
         rsi_period=req.rsi_period, rsi_oversold=req.rsi_oversold, rsi_overbought=req.rsi_overbought,
-        rsi_stop_pct=req.rsi_stop_pct,
         macd_fast=req.macd_fast, macd_slow=req.macd_slow, macd_signal=req.macd_signal,
-        macd_stop_pct=req.macd_stop_pct,
+        stop_type=req.stop_type, stop_pct=req.stop_pct, atr_period=req.atr_period, atr_mult=req.atr_mult,
+        atr_ch_period=req.atr_ch_period, atr_ch_ma_window=req.atr_ch_ma_window, atr_ch_mult=req.atr_ch_mult,
+        fvg_atr_period=req.fvg_atr_period, fvg_max_wait=req.fvg_max_wait,
+        fvg_atr_stop_mult=req.fvg_atr_stop_mult, fvg_atr_target_mult=req.fvg_atr_target_mult,
     )
 
 
@@ -464,7 +480,7 @@ async def telegram_webhook(webhook_secret: str, request: Request):
 class WatchlistCreate(BaseModel):
     market: Literal["us", "tw", "crypto"]
     ticker: str
-    strategy: Literal["bollinger", "ma3", "ma_cross", "donchian", "rsi", "macd"]
+    strategy: Literal["bollinger", "ma3", "ma_cross", "donchian", "rsi", "macd", "atr_channel", "fvg"]
     interval: Literal["1d", "4h", "1h", "15m", "5m", "1m"] = "1d"
     allow_short: bool = True
     params: Dict[str, Any] = Field(default_factory=dict)

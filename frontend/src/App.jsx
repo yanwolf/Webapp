@@ -35,6 +35,8 @@ const STRATEGY_SUBTITLE = {
   donchian: 'N日高低點突破 · 海龜交易法則簡化版',
   rsi: 'RSI超買超賣反彈 · 經典均值回歸',
   macd: 'MACD/訊號線交叉 · 經典動能指標',
+  atr_channel: '中軌±ATR倍數畫出通道 · 用波動度定義突破',
+  fvg: '偵測三根K棒缺口 · 等待回補反轉確認進場',
   buy_hold: '第一根K棒買進、全程持有到底 · 用來檢驗策略是否真的打敗大盤',
 };
 
@@ -58,17 +60,25 @@ export default function App() {
     cross_fast: 20,
     cross_slow: 60,
     cross_ma_type: 'sma',
-    cross_stop_pct: 0.08,
     donch_entry_window: 20,
     donch_exit_window: 10,
     rsi_period: 14,
     rsi_oversold: 30,
     rsi_overbought: 70,
-    rsi_stop_pct: 0.06,
     macd_fast: 12,
     macd_slow: 26,
     macd_signal: 9,
-    macd_stop_pct: 0.08,
+    stop_type: 'pct',
+    stop_pct: 0.08,
+    atr_period: 14,
+    atr_mult: 2.0,
+    atr_ch_period: 14,
+    atr_ch_ma_window: 20,
+    atr_ch_mult: 2.0,
+    fvg_atr_period: 14,
+    fvg_max_wait: 20,
+    fvg_atr_stop_mult: 1.5,
+    fvg_atr_target_mult: 3.0,
   });
 
   const [loading, setLoading] = useState(false);
@@ -77,10 +87,13 @@ export default function App() {
 
   const numericKeys = [
     'capital', 'ma_fast', 'ma_mid', 'ma_slow',
-    'cross_fast', 'cross_slow', 'cross_stop_pct',
+    'cross_fast', 'cross_slow',
     'donch_entry_window', 'donch_exit_window',
-    'rsi_period', 'rsi_oversold', 'rsi_overbought', 'rsi_stop_pct',
-    'macd_fast', 'macd_slow', 'macd_signal', 'macd_stop_pct',
+    'rsi_period', 'rsi_oversold', 'rsi_overbought',
+    'macd_fast', 'macd_slow', 'macd_signal',
+    'stop_pct', 'atr_period', 'atr_mult',
+    'atr_ch_period', 'atr_ch_ma_window', 'atr_ch_mult',
+    'fvg_atr_period', 'fvg_max_wait', 'fvg_atr_stop_mult', 'fvg_atr_target_mult',
   ];
 
   const runBacktest = async () => {

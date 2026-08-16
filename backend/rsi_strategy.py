@@ -2,6 +2,7 @@
 """RSI 超買超賣策略（經典均值回歸）"""
 import numpy as np
 import pandas as pd
+from atr_utils import compute_atr
 
 
 def compute_rsi(close: pd.Series, period: int = 14) -> pd.Series:
@@ -16,8 +17,10 @@ def compute_rsi(close: pd.Series, period: int = 14) -> pd.Series:
 
 
 def compute_rsi_signals(df: pd.DataFrame, period: int = 14,
-                         oversold: float = 30, overbought: float = 70) -> pd.DataFrame:
+                         oversold: float = 30, overbought: float = 70,
+                         atr_period: int = 14) -> pd.DataFrame:
     df = df.copy()
+    df["atr"] = compute_atr(df, atr_period)
     df["rsi"] = compute_rsi(df["Close"], period)
 
     cross_up_from_oversold = (df["rsi"].shift(1) <= oversold) & (df["rsi"] > oversold)
