@@ -320,3 +320,58 @@ footer.note {
   padding-top: 20px;
   border-top: 1px solid var(--border-soft);
 }
+
+/* ---------- 手機版 (寬度 <= 640px) ---------- */
+@media (max-width: 640px) {
+  .app-shell { padding: 24px 14px 56px; }
+
+  .hero { flex-wrap: wrap; gap: 10px; }
+  .hero h1 { font-size: 20px; }
+  .hero-mark { width: 28px; height: 28px; }
+
+  .hero-sub { margin-left: 0; margin-bottom: 20px; font-size: 13px; }
+
+  .tab-row {
+    margin-left: 0;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+  .tab-btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-right: 14px;
+    font-size: 13px;
+  }
+
+  .panel, .chart-panel { padding: 16px; }
+
+  .control-panel { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .run-btn { grid-column: 1 / -1; }
+
+  .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .metric-card { padding: 12px 14px; }
+  .metric-value { font-size: 18px; }
+
+  .legend-row { gap: 10px 14px; font-size: 11px; }
+
+  table.trades { font-size: 12px; }
+  table.trades th, table.trades td { padding: 7px 8px; }
+
+  .empty-state { padding: 40px 16px; }
+}
+
+@media (max-width: 400px) {
+  .control-panel { grid-template-columns: 1fr; }
+  .metrics-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* ---------- Login page ---------- */
+.login-shell {
+  max-width: 420px;
+  padding-top: 80px;
+}
+@media (max-width: 640px) {
+  .login-shell { padding-top: 40px; }
+}

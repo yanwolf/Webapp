@@ -33,7 +33,7 @@ export default function LoginPage({ onLoggedIn }) {
   };
 
   return (
-    <div className="app-shell" style={{ maxWidth: 420, paddingTop: 80 }}>
+    <div className="app-shell login-shell">
       <div className="hero" style={{ justifyContent: 'center' }}>
         <div className="hero-mark">
           <svg viewBox="0 0 34 34" fill="none">
