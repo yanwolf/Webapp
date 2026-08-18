@@ -37,7 +37,10 @@ from strategy_runner import (
     ALL_SIGNAL_STRATEGIES, STYLE_PRESETS, OPTIMIZE_GRIDS, PARAM_LABELS,
 )
 from ticker_search import search_tw, search_us, search_crypto
-from stock_analysis import analyze_signals, fetch_tw_fundamentals
+from stock_analysis import (
+    analyze_signals, fetch_tw_fundamentals, fetch_institutional_daily,
+    fetch_margin_daily, compute_volume_volatility, build_summary_text,
+)
 from scheduler import start_scheduler
 
 logging.basicConfig(level=logging.INFO)
@@ -634,6 +637,10 @@ def analyze_stock(req: StockAnalysisRequest, user=Depends(auth.get_current_user)
 
     signals, tally = analyze_signals(df)
     fundamentals = fetch_tw_fundamentals(req.ticker)
+    institutional_daily = fetch_institutional_daily(req.ticker, days=20)
+    margin_daily = fetch_margin_daily(req.ticker, days=10)
+    volume_stats = compute_volume_volatility(df)
+    summary_text = build_summary_text(tally, institutional_daily, volume_stats, margin_daily)
 
     cur_price = float(df["Close"].iloc[-1])
     prev_price = float(df["Close"].iloc[-2]) if len(df) > 1 else cur_price
@@ -650,4 +657,8 @@ def analyze_stock(req: StockAnalysisRequest, user=Depends(auth.get_current_user)
         "signals": signals,
         "tally": tally,
         "fundamentals": fundamentals,
+        "institutional_daily": institutional_daily,
+        "margin_daily": margin_daily,
+        "volume_stats": volume_stats,
+        "summary_text": summary_text,
     }
