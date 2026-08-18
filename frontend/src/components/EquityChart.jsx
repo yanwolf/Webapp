@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { useElementWidth } from '../useElementWidth';
+import { useRemeasureKey } from '../useElementWidth';
+import { downsampleForChart } from '../downsample';
 
 const TICK_STYLE = { fill: 'var(--text-faint)', fontSize: 11 };
 
@@ -25,8 +26,9 @@ function CustomTooltip({ active, payload, label }) {
 }
 
 export default function EquityChart({ equitySeries }) {
-  const everyNth = Math.max(1, Math.floor(equitySeries.length / 8));
-  const [boxRef, boxWidth] = useElementWidth();
+  const chartData = useMemo(() => downsampleForChart(equitySeries, 600), [equitySeries]);
+  const everyNth = Math.max(1, Math.floor(chartData.length / 8));
+  const remeasureKey = useRemeasureKey();
 
   return (
     <div className="chart-panel">
@@ -34,9 +36,8 @@ export default function EquityChart({ equitySeries }) {
       <div className="legend-row">
         <span className="legend-item"><span className="legend-dot" style={{ background: '#d4b06a' }} />帳戶淨值</span>
       </div>
-      <div ref={boxRef} style={{ width: '100%' }}>
-        {boxWidth > 0 && (
-        <AreaChart width={boxWidth} height={220} data={equitySeries} margin={{ top: 4, right: 12, left: -8, bottom: 4 }}>
+      <ResponsiveContainer key={remeasureKey} width="100%" height={220}>
+        <AreaChart data={chartData} margin={{ top: 4, right: 12, left: -8, bottom: 4 }}>
           <defs>
             <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#d4b06a" stopOpacity={0.35} />
@@ -50,8 +51,7 @@ export default function EquityChart({ equitySeries }) {
           <Tooltip content={<CustomTooltip />} />
           <Area type="monotone" dataKey="equity" stroke="#d4b06a" strokeWidth={1.4} fill="url(#equityFill)" isAnimationActive={false} />
         </AreaChart>
-        )}
-      </div>
+      </ResponsiveContainer>
     </div>
   );
 }

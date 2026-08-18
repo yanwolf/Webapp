@@ -1,37 +1,38 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
- * 自己量容器實際寬度（用 ResizeObserver），不依賴 Recharts 的 ResponsiveContainer 自動偵測。
- * 部分行動裝置瀏覽器在版面剛渲染、還沒穩定時量到的寬度不準，
- * ResponsiveContainer 之後又沒有正確重新量測，導致圖表被鎖定在錯誤的寬度上。
- * 回傳 [ref, width]，把 ref 掛在外層 div 上，width 是該 div 目前的實際像素寬度。
+ * 用來強迫 Recharts 的 ResponsiveContainer 在版面穩定後重新量測一次。
+ * 做法：回傳一個會變動的數字（remeasureKey），把它當成 ResponsiveContainer 的 key，
+ * 每次數字變動就會強迫該元件整個重新掛載，逼 Recharts 用當下最新的容器尺寸重新計算，
+ * 避免它卡在第一次渲染時量到的（可能不準確的）舊尺寸。
+ *
+ * 觸發時機：
+ *   - 掛載後 200ms / 600ms / 1200ms 各補量一次（涵蓋字型載入、版面延遲穩定等情況）
+ *   - 視窗尺寸改變 / 螢幕旋轉時
  */
-export function useElementWidth() {
-  const ref = useRef(null);
-  const [width, setWidth] = useState(0);
+export function useRemeasureKey() {
+  const [key, setKey] = useState(0);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return undefined;
+    const bump = () => setKey((k) => k + 1);
 
-    const update = () => {
-      const w = el.clientWidth;
-      if (w > 0) setWidth(w);
-    };
+    const timers = [setTimeout(bump, 200), setTimeout(bump, 600), setTimeout(bump, 1200)];
 
-    update();
-
-    const ro = new ResizeObserver(() => update());
-    ro.observe(el);
-    window.addEventListener('orientationchange', update);
-    window.addEventListener('resize', update);
+    window.addEventListener('resize', bump);
+    window.addEventListener('orientationchange', bump);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', bump);
+    }
 
     return () => {
-      ro.disconnect();
-      window.removeEventListener('orientationchange', update);
-      window.removeEventListener('resize', update);
+      timers.forEach(clearTimeout);
+      window.removeEventListener('resize', bump);
+      window.removeEventListener('orientationchange', bump);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', bump);
+      }
     };
   }, []);
 
-  return [ref, width];
+  return key;
 }

@@ -1,9 +1,10 @@
 import React, { useMemo } from 'react';
 import {
   ComposedChart, Area, Line, Scatter, XAxis, YAxis, CartesianGrid,
-  Tooltip,
+  Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { useElementWidth } from '../useElementWidth';
+import { useRemeasureKey } from '../useElementWidth';
+import { downsampleForChart } from '../downsample';
 
 const TICK_STYLE = { fill: 'var(--text-faint)', fontSize: 11 };
 
@@ -82,8 +83,20 @@ export default function PriceChart({ priceSeries, trades, chartType = 'lines', o
     return rows;
   }, [priceSeries, isBand, lowerKey, upperKey, trades]);
 
-  const everyNth = Math.max(1, Math.floor(data.length / 8));
-  const [boxRef, boxWidth] = useElementWidth();
+  // 資料點太多時（常見於小時K/分K）先抽稀再畫，避免手機瀏覽器畫太密的SVG卡住；
+  // 進出場K棒一定保留，不會因為抽稀被跳過
+  const chartData = useMemo(() => {
+    const keepIndices = [];
+    data.forEach((r, i) => {
+      if (r.entry_long != null || r.entry_short != null || r.exit_long != null || r.exit_short != null) {
+        keepIndices.push(i);
+      }
+    });
+    return downsampleForChart(data, 600, keepIndices);
+  }, [data]);
+
+  const everyNth = Math.max(1, Math.floor(chartData.length / 8));
+  const remeasureKey = useRemeasureKey();
   const Tooltip_ = makeTooltip(overlayKeys);
 
   return (
@@ -103,9 +116,8 @@ export default function PriceChart({ priceSeries, trades, chartType = 'lines', o
         <span className="legend-item"><span className="legend-tri" style={{ borderTop: '8px solid #29b389' }} />做空進場</span>
         <span className="legend-item"><span className="legend-tri" style={{ borderTop: '8px solid #8b8f98' }} />出場</span>
       </div>
-      <div ref={boxRef} style={{ width: '100%' }}>
-        {boxWidth > 0 && (
-        <ComposedChart width={boxWidth} height={380} data={data} margin={{ top: 4, right: 12, left: -8, bottom: 4 }}>
+      <ResponsiveContainer key={remeasureKey} width="100%" height={380}>
+        <ComposedChart data={chartData} margin={{ top: 4, right: 12, left: -8, bottom: 4 }}>
           <CartesianGrid stroke="#1d2026" vertical={false} />
           <XAxis
             dataKey="date"
@@ -140,13 +152,12 @@ export default function PriceChart({ priceSeries, trades, chartType = 'lines', o
 
           <Line dataKey="close" stroke="#e9e7e1" strokeWidth={1.2} dot={false} isAnimationActive={false} />
 
-          <Scatter data={data} dataKey="entry_long" shape={(p) => <Triangle {...p} up color="#ec5f5f" />} isAnimationActive={false} />
-          <Scatter data={data} dataKey="entry_short" shape={(p) => <Triangle {...p} up={false} color="#29b389" />} isAnimationActive={false} />
-          <Scatter data={data} dataKey="exit_long" shape={(p) => <Triangle {...p} up={false} color="#8b8f98" />} isAnimationActive={false} />
-          <Scatter data={data} dataKey="exit_short" shape={(p) => <Triangle {...p} up color="#8b8f98" />} isAnimationActive={false} />
+          <Scatter data={chartData} dataKey="entry_long" shape={(p) => <Triangle {...p} up color="#ec5f5f" />} isAnimationActive={false} />
+          <Scatter data={chartData} dataKey="entry_short" shape={(p) => <Triangle {...p} up={false} color="#29b389" />} isAnimationActive={false} />
+          <Scatter data={chartData} dataKey="exit_long" shape={(p) => <Triangle {...p} up={false} color="#8b8f98" />} isAnimationActive={false} />
+          <Scatter data={chartData} dataKey="exit_short" shape={(p) => <Triangle {...p} up color="#8b8f98" />} isAnimationActive={false} />
         </ComposedChart>
-        )}
-      </div>
+      </ResponsiveContainer>
     </div>
   );
 }

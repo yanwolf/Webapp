@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
-  ComposedChart, Line, Bar, ReferenceLine, XAxis, YAxis, CartesianGrid, Tooltip,
+  ComposedChart, Line, Bar, ReferenceLine, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { useElementWidth } from '../useElementWidth';
+import { useRemeasureKey } from '../useElementWidth';
+import { downsampleForChart } from '../downsample';
 
 const TICK_STYLE = { fill: 'var(--text-faint)', fontSize: 11 };
 
@@ -37,8 +39,9 @@ function MacdTooltip({ active, payload, label }) {
 }
 
 export function RsiChart({ priceSeries, oversold = 30, overbought = 70 }) {
-  const everyNth = Math.max(1, Math.floor(priceSeries.length / 8));
-  const [boxRef, boxWidth] = useElementWidth();
+  const chartData = useMemo(() => downsampleForChart(priceSeries, 600), [priceSeries]);
+  const everyNth = Math.max(1, Math.floor(chartData.length / 8));
+  const remeasureKey = useRemeasureKey();
   return (
     <div className="chart-panel">
       <div className="chart-panel-title">RSI 相對強弱指標</div>
@@ -46,9 +49,8 @@ export function RsiChart({ priceSeries, oversold = 30, overbought = 70 }) {
         <span className="legend-item"><span className="legend-dot" style={{ background: '#6ee7df' }} />RSI</span>
         <span className="legend-item"><span className="legend-dot" style={{ background: '#ec5f5f' }} />超買/超賣線</span>
       </div>
-      <div ref={boxRef} style={{ width: '100%' }}>
-        {boxWidth > 0 && (
-        <ComposedChart width={boxWidth} height={220} data={priceSeries} margin={{ top: 4, right: 12, left: -8, bottom: 4 }}>
+      <ResponsiveContainer key={remeasureKey} width="100%" height={220}>
+        <ComposedChart data={chartData} margin={{ top: 4, right: 12, left: -8, bottom: 4 }}>
           <CartesianGrid stroke="#1d2026" vertical={false} />
           <XAxis dataKey="date" tick={TICK_STYLE} axisLine={{ stroke: '#262a31' }} tickLine={false} interval={everyNth} minTickGap={40} />
           <YAxis tick={TICK_STYLE} axisLine={{ stroke: '#262a31' }} tickLine={false} domain={[0, 100]} width={40} />
@@ -58,16 +60,16 @@ export function RsiChart({ priceSeries, oversold = 30, overbought = 70 }) {
           <ReferenceLine y={50} stroke="#565a63" strokeOpacity={0.4} />
           <Line dataKey="rsi" stroke="#6ee7df" strokeWidth={1.3} dot={false} isAnimationActive={false} />
         </ComposedChart>
-        )}
-      </div>
+      </ResponsiveContainer>
     </div>
   );
 }
 
 export function MacdChart({ priceSeries }) {
-  const everyNth = Math.max(1, Math.floor(priceSeries.length / 8));
-  const [boxRef, boxWidth] = useElementWidth();
-  const data = priceSeries.map((d) => ({ ...d, hist_pos: d.macd_hist >= 0 ? d.macd_hist : 0, hist_neg: d.macd_hist < 0 ? d.macd_hist : 0 }));
+  const sampled = useMemo(() => downsampleForChart(priceSeries, 600), [priceSeries]);
+  const everyNth = Math.max(1, Math.floor(sampled.length / 8));
+  const remeasureKey = useRemeasureKey();
+  const data = sampled.map((d) => ({ ...d, hist_pos: d.macd_hist >= 0 ? d.macd_hist : 0, hist_neg: d.macd_hist < 0 ? d.macd_hist : 0 }));
   return (
     <div className="chart-panel">
       <div className="chart-panel-title">MACD 動量指標</div>
@@ -76,9 +78,8 @@ export function MacdChart({ priceSeries }) {
         <span className="legend-item"><span className="legend-dot" style={{ background: '#d4b06a' }} />訊號線</span>
         <span className="legend-item"><span className="legend-dot" style={{ background: '#6ee7df' }} />柱狀圖</span>
       </div>
-      <div ref={boxRef} style={{ width: '100%' }}>
-        {boxWidth > 0 && (
-        <ComposedChart width={boxWidth} height={220} data={data} margin={{ top: 4, right: 12, left: -8, bottom: 4 }}>
+      <ResponsiveContainer key={remeasureKey} width="100%" height={220}>
+        <ComposedChart data={data} margin={{ top: 4, right: 12, left: -8, bottom: 4 }}>
           <CartesianGrid stroke="#1d2026" vertical={false} />
           <XAxis dataKey="date" tick={TICK_STYLE} axisLine={{ stroke: '#262a31' }} tickLine={false} interval={everyNth} minTickGap={40} />
           <YAxis tick={TICK_STYLE} axisLine={{ stroke: '#262a31' }} tickLine={false} domain={['auto', 'auto']} width={54} />
@@ -89,8 +90,7 @@ export function MacdChart({ priceSeries }) {
           <Line dataKey="macd" stroke="#ec5f5f" strokeWidth={1.2} dot={false} isAnimationActive={false} />
           <Line dataKey="macd_signal" stroke="#d4b06a" strokeWidth={1.2} dot={false} isAnimationActive={false} />
         </ComposedChart>
-        )}
-      </div>
+      </ResponsiveContainer>
     </div>
   );
 }
