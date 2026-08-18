@@ -5,10 +5,11 @@ import {
 } from 'recharts';
 import { useRemeasureKey } from '../useElementWidth';
 import { downsampleForChart } from '../downsample';
+import { toTs, formatTick } from '../chartTime';
 
 const TICK_STYLE = { fill: 'var(--text-faint)', fontSize: 11 };
 
-function RsiTooltip({ active, payload, label }) {
+function RsiTooltip({ active, payload }) {
   if (!active || !payload || !payload.length) return null;
   const row = payload[0].payload;
   return (
@@ -16,13 +17,13 @@ function RsiTooltip({ active, payload, label }) {
       background: '#191c21', border: '1px solid #262a31', borderRadius: 8,
       padding: '10px 12px', fontSize: 12, fontFamily: 'var(--font-mono)', color: '#e9e7e1',
     }}>
-      <div style={{ marginBottom: 6, color: '#8b8f98', fontFamily: 'var(--font-ui)' }}>{label}</div>
+      <div style={{ marginBottom: 6, color: '#8b8f98', fontFamily: 'var(--font-ui)' }}>{row.date}</div>
       <div>RSI {row.rsi?.toFixed(1)}</div>
     </div>
   );
 }
 
-function MacdTooltip({ active, payload, label }) {
+function MacdTooltip({ active, payload }) {
   if (!active || !payload || !payload.length) return null;
   const row = payload[0].payload;
   return (
@@ -30,7 +31,7 @@ function MacdTooltip({ active, payload, label }) {
       background: '#191c21', border: '1px solid #262a31', borderRadius: 8,
       padding: '10px 12px', fontSize: 12, fontFamily: 'var(--font-mono)', color: '#e9e7e1',
     }}>
-      <div style={{ marginBottom: 6, color: '#8b8f98', fontFamily: 'var(--font-ui)' }}>{label}</div>
+      <div style={{ marginBottom: 6, color: '#8b8f98', fontFamily: 'var(--font-ui)' }}>{row.date}</div>
       <div style={{ color: '#ec5f5f' }}>MACD {row.macd?.toFixed(3)}</div>
       <div style={{ color: '#d4b06a' }}>訊號線 {row.macd_signal?.toFixed(3)}</div>
       <div>柱狀 {row.macd_hist?.toFixed(3)}</div>
@@ -39,8 +40,9 @@ function MacdTooltip({ active, payload, label }) {
 }
 
 export function RsiChart({ priceSeries, oversold = 30, overbought = 70 }) {
-  const chartData = useMemo(() => downsampleForChart(priceSeries, 600), [priceSeries]);
-  const everyNth = Math.max(1, Math.floor(chartData.length / 8));
+  const hasTime = useMemo(() => (priceSeries[0]?.date || '').includes(' '), [priceSeries]);
+  const withTs = useMemo(() => priceSeries.map((d) => ({ ...d, ts: toTs(d.date) })), [priceSeries]);
+  const chartData = useMemo(() => downsampleForChart(withTs, 600), [withTs]);
   const remeasureKey = useRemeasureKey();
   return (
     <div className="chart-panel">
@@ -52,7 +54,16 @@ export function RsiChart({ priceSeries, oversold = 30, overbought = 70 }) {
       <ResponsiveContainer key={remeasureKey} width="100%" height={220}>
         <ComposedChart data={chartData} margin={{ top: 4, right: 12, left: -8, bottom: 4 }}>
           <CartesianGrid stroke="#1d2026" vertical={false} />
-          <XAxis dataKey="date" tick={TICK_STYLE} axisLine={{ stroke: '#262a31' }} tickLine={false} interval={everyNth} minTickGap={40} />
+          <XAxis
+            dataKey="ts"
+            type="number"
+            domain={['dataMin', 'dataMax']}
+            tick={TICK_STYLE}
+            axisLine={{ stroke: '#262a31' }}
+            tickLine={false}
+            tickFormatter={(ts) => formatTick(ts, hasTime)}
+            minTickGap={40}
+          />
           <YAxis tick={TICK_STYLE} axisLine={{ stroke: '#262a31' }} tickLine={false} domain={[0, 100]} width={40} />
           <Tooltip content={<RsiTooltip />} />
           <ReferenceLine y={overbought} stroke="#ec5f5f" strokeDasharray="4 3" strokeOpacity={0.6} />
@@ -66,10 +77,17 @@ export function RsiChart({ priceSeries, oversold = 30, overbought = 70 }) {
 }
 
 export function MacdChart({ priceSeries }) {
-  const sampled = useMemo(() => downsampleForChart(priceSeries, 600), [priceSeries]);
-  const everyNth = Math.max(1, Math.floor(sampled.length / 8));
+  const hasTime = useMemo(() => (priceSeries[0]?.date || '').includes(' '), [priceSeries]);
+  const withTs = useMemo(
+    () => priceSeries.map((d) => ({
+      ...d, ts: toTs(d.date),
+      hist_pos: d.macd_hist >= 0 ? d.macd_hist : 0,
+      hist_neg: d.macd_hist < 0 ? d.macd_hist : 0,
+    })),
+    [priceSeries]
+  );
+  const chartData = useMemo(() => downsampleForChart(withTs, 600), [withTs]);
   const remeasureKey = useRemeasureKey();
-  const data = sampled.map((d) => ({ ...d, hist_pos: d.macd_hist >= 0 ? d.macd_hist : 0, hist_neg: d.macd_hist < 0 ? d.macd_hist : 0 }));
   return (
     <div className="chart-panel">
       <div className="chart-panel-title">MACD 動量指標</div>
@@ -79,9 +97,18 @@ export function MacdChart({ priceSeries }) {
         <span className="legend-item"><span className="legend-dot" style={{ background: '#6ee7df' }} />柱狀圖</span>
       </div>
       <ResponsiveContainer key={remeasureKey} width="100%" height={220}>
-        <ComposedChart data={data} margin={{ top: 4, right: 12, left: -8, bottom: 4 }}>
+        <ComposedChart data={chartData} margin={{ top: 4, right: 12, left: -8, bottom: 4 }}>
           <CartesianGrid stroke="#1d2026" vertical={false} />
-          <XAxis dataKey="date" tick={TICK_STYLE} axisLine={{ stroke: '#262a31' }} tickLine={false} interval={everyNth} minTickGap={40} />
+          <XAxis
+            dataKey="ts"
+            type="number"
+            domain={['dataMin', 'dataMax']}
+            tick={TICK_STYLE}
+            axisLine={{ stroke: '#262a31' }}
+            tickLine={false}
+            tickFormatter={(ts) => formatTick(ts, hasTime)}
+            minTickGap={40}
+          />
           <YAxis tick={TICK_STYLE} axisLine={{ stroke: '#262a31' }} tickLine={false} domain={['auto', 'auto']} width={54} />
           <Tooltip content={<MacdTooltip />} />
           <ReferenceLine y={0} stroke="#565a63" strokeOpacity={0.5} />

@@ -4,6 +4,7 @@ import {
 } from 'recharts';
 import { useRemeasureKey } from '../useElementWidth';
 import { downsampleForChart } from '../downsample';
+import { toTs, formatTick } from '../chartTime';
 
 const TICK_STYLE = { fill: 'var(--text-faint)', fontSize: 11 };
 
@@ -12,22 +13,24 @@ function fmtMoney(v) {
   return v.toLocaleString('zh-TW', { maximumFractionDigits: 0 });
 }
 
-function CustomTooltip({ active, payload, label }) {
+function CustomTooltip({ active, payload }) {
   if (!active || !payload || !payload.length) return null;
+  const row = payload[0].payload;
   return (
     <div style={{
       background: '#191c21', border: '1px solid #262a31', borderRadius: 8,
       padding: '10px 12px', fontSize: 12, fontFamily: 'var(--font-mono)', color: '#e9e7e1',
     }}>
-      <div style={{ marginBottom: 6, color: '#8b8f98', fontFamily: 'var(--font-ui)' }}>{label}</div>
-      <div>權益 {fmtMoney(payload[0].value)}</div>
+      <div style={{ marginBottom: 6, color: '#8b8f98', fontFamily: 'var(--font-ui)' }}>{row.date}</div>
+      <div>權益 {fmtMoney(row.equity)}</div>
     </div>
   );
 }
 
 export default function EquityChart({ equitySeries }) {
-  const chartData = useMemo(() => downsampleForChart(equitySeries, 600), [equitySeries]);
-  const everyNth = Math.max(1, Math.floor(chartData.length / 8));
+  const hasTime = useMemo(() => (equitySeries[0]?.date || '').includes(' '), [equitySeries]);
+  const withTs = useMemo(() => equitySeries.map((d) => ({ ...d, ts: toTs(d.date) })), [equitySeries]);
+  const chartData = useMemo(() => downsampleForChart(withTs, 600), [withTs]);
   const remeasureKey = useRemeasureKey();
 
   return (
@@ -45,7 +48,16 @@ export default function EquityChart({ equitySeries }) {
             </linearGradient>
           </defs>
           <CartesianGrid stroke="#1d2026" vertical={false} />
-          <XAxis dataKey="date" tick={TICK_STYLE} axisLine={{ stroke: '#262a31' }} tickLine={false} interval={everyNth} minTickGap={40} />
+          <XAxis
+            dataKey="ts"
+            type="number"
+            domain={['dataMin', 'dataMax']}
+            tick={TICK_STYLE}
+            axisLine={{ stroke: '#262a31' }}
+            tickLine={false}
+            tickFormatter={(ts) => formatTick(ts, hasTime)}
+            minTickGap={40}
+          />
           <YAxis tick={TICK_STYLE} axisLine={{ stroke: '#262a31' }} tickLine={false} domain={['auto', 'auto']} width={64}
                  tickFormatter={fmtMoney} />
           <Tooltip content={<CustomTooltip />} />

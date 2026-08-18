@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   ComposedChart, Area, Line, Scatter, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { useRemeasureKey } from '../useElementWidth';
 import { downsampleForChart } from '../downsample';
+import { toTs, formatTick } from '../chartTime';
 
 const TICK_STYLE = { fill: 'var(--text-faint)', fontSize: 11 };
 
@@ -33,7 +34,7 @@ function Triangle({ cx, cy, up, color }) {
 }
 
 function makeTooltip(overlayKeys) {
-  return function CustomTooltip({ active, payload, label }) {
+  return function CustomTooltip({ active, payload }) {
     if (!active || !payload || !payload.length) return null;
     const row = payload[0].payload;
     return (
@@ -41,7 +42,7 @@ function makeTooltip(overlayKeys) {
         background: '#191c21', border: '1px solid #262a31', borderRadius: 8,
         padding: '10px 12px', fontSize: 12, fontFamily: 'var(--font-mono)', color: '#e9e7e1',
       }}>
-        <div style={{ marginBottom: 6, color: '#8b8f98', fontFamily: 'var(--font-ui)' }}>{label}</div>
+        <div style={{ marginBottom: 6, color: '#8b8f98', fontFamily: 'var(--font-ui)' }}>{row.date}</div>
         <div>收盤 {row.close?.toFixed(2)}</div>
         {overlayKeys.map((k) => (
           <div key={k} style={{ color: OVERLAY_COLORS[k] || '#e9e7e1' }}>
@@ -61,13 +62,15 @@ export default function PriceChart({ priceSeries, trades, chartType = 'lines', o
   const upperKey = bandKeys.find((k) => k.toLowerCase().includes('upper'));
   const midKey = overlayKeys.find((k) => !bandKeys.includes(k));
 
+  const hasTime = useMemo(() => (priceSeries[0]?.date || '').includes(' '), [priceSeries]);
+
   const data = useMemo(() => {
-    const rows = priceSeries.map((d) => (
-      isBand && lowerKey && upperKey
-        ? { ...d, band: [d[lowerKey], d[upperKey]], entry_long: null, entry_short: null, exit_long: null, exit_short: null }
-        : { ...d, entry_long: null, entry_short: null, exit_long: null, exit_short: null }
-    ));
-    // 用 Map 一次建立日期→列索引對照，避免每筆交易都線性掃描整個陣列
+    const rows = priceSeries.map((d) => {
+      const base = isBand && lowerKey && upperKey
+        ? { ...d, band: [d[lowerKey], d[upperKey]] }
+        : { ...d };
+      return { ...base, ts: toTs(d.date), entry_long: null, entry_short: null, exit_long: null, exit_short: null };
+    });
     const indexByDate = new Map(rows.map((r, i) => [r.date, i]));
     (trades || []).forEach((t) => {
       const entryIdx = indexByDate.get(t.entry_date);
@@ -95,34 +98,7 @@ export default function PriceChart({ priceSeries, trades, chartType = 'lines', o
     return downsampleForChart(data, 600, keepIndices);
   }, [data]);
 
-  const everyNth = Math.max(1, Math.floor(chartData.length / 8));
   const remeasureKey = useRemeasureKey();
-
-  // 暫時的除錯資訊：量測外層容器實際寬度，跟視窗寬度、資料筆數一起顯示出來，
-  // 方便判斷問題到底是「量到的寬度不對」還是「量到的寬度對，但畫的內容不對」
-  const debugBoxRef = useRef(null);
-  const [debugInfo, setDebugInfo] = useState(null);
-  useEffect(() => {
-    const measure = () => {
-      const el = debugBoxRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      setDebugInfo({
-        containerWidth: Math.round(rect.width),
-        windowInnerWidth: window.innerWidth,
-        devicePixelRatio: window.devicePixelRatio,
-        dataRows: chartData.length,
-      });
-    };
-    measure();
-    const t1 = setTimeout(measure, 500);
-    const t2 = setTimeout(measure, 1500);
-    window.addEventListener('resize', measure);
-    return () => {
-      clearTimeout(t1); clearTimeout(t2);
-      window.removeEventListener('resize', measure);
-    };
-  }, [chartData.length, remeasureKey]);
   const Tooltip_ = makeTooltip(overlayKeys);
 
   return (
@@ -142,26 +118,17 @@ export default function PriceChart({ priceSeries, trades, chartType = 'lines', o
         <span className="legend-item"><span className="legend-tri" style={{ borderTop: '8px solid #29b389' }} />做空進場</span>
         <span className="legend-item"><span className="legend-tri" style={{ borderTop: '8px solid #8b8f98' }} />出場</span>
       </div>
-      {debugInfo && (
-        <div style={{
-          fontSize: 11, fontFamily: 'var(--font-mono)', color: '#f0a500',
-          background: 'rgba(240,165,0,0.08)', border: '1px solid rgba(240,165,0,0.3)',
-          borderRadius: 6, padding: '6px 10px', marginBottom: 10,
-        }}>
-          🔧 除錯資訊：容器寬度={debugInfo.containerWidth}px　視窗寬度={debugInfo.windowInnerWidth}px　
-          DPR={debugInfo.devicePixelRatio}　資料筆數={debugInfo.dataRows}
-        </div>
-      )}
-      <div ref={debugBoxRef}>
       <ResponsiveContainer key={remeasureKey} width="100%" height={380}>
         <ComposedChart data={chartData} margin={{ top: 4, right: 12, left: -8, bottom: 4 }}>
           <CartesianGrid stroke="#1d2026" vertical={false} />
           <XAxis
-            dataKey="date"
+            dataKey="ts"
+            type="number"
+            domain={['dataMin', 'dataMax']}
             tick={TICK_STYLE}
             axisLine={{ stroke: '#262a31' }}
             tickLine={false}
-            interval={everyNth}
+            tickFormatter={(ts) => formatTick(ts, hasTime)}
             minTickGap={40}
           />
           <YAxis
@@ -195,7 +162,6 @@ export default function PriceChart({ priceSeries, trades, chartType = 'lines', o
           <Scatter data={chartData} dataKey="exit_short" shape={(p) => <Triangle {...p} up color="#8b8f98" />} isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
-      </div>
     </div>
   );
 }
