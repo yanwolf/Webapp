@@ -37,6 +37,7 @@ from strategy_runner import (
     ALL_SIGNAL_STRATEGIES, STYLE_PRESETS, OPTIMIZE_GRIDS, PARAM_LABELS,
 )
 from ticker_search import search_tw, search_us, search_crypto
+from stock_analysis import analyze_signals, fetch_tw_fundamentals
 from scheduler import start_scheduler
 
 logging.basicConfig(level=logging.INFO)
@@ -606,3 +607,47 @@ def remove_watchlist_item(item_id: int, user=Depends(auth.get_current_user)):
     _get_owned_item_or_404(item_id, user["id"])
     db.delete_watchlist_item(item_id)
     return {"ok": True}
+
+
+# ======================================================================
+# 台股個股分析：目前值不值得買（技術面現況 + 基本面，不做斷言式結論）
+# ======================================================================
+class StockAnalysisRequest(BaseModel):
+    ticker: str
+
+
+@app.post("/api/analyze-stock")
+def analyze_stock(req: StockAnalysisRequest, user=Depends(auth.get_current_user)):
+    from datetime import datetime as _dt, timedelta as _td
+    start = (_dt.now() - _td(days=365 * 3)).strftime("%Y-%m-%d")
+
+    df, resolved, notes, err, source = fetch_ohlcv("tw", req.ticker, "1d", start)
+    if err:
+        status = 404 if "抓不到" in err else 502
+        raise HTTPException(status_code=status, detail=err)
+
+    if len(df) < 300:
+        raise HTTPException(
+            status_code=422,
+            detail=f"「{resolved}」只抓到 {len(df)} 根日K，資料量不足以完整分析（至少需要約300根，通常是上市不久的新股或資料源涵蓋範圍不足）。"
+        )
+
+    signals, tally = analyze_signals(df)
+    fundamentals = fetch_tw_fundamentals(req.ticker)
+
+    cur_price = float(df["Close"].iloc[-1])
+    prev_price = float(df["Close"].iloc[-2]) if len(df) > 1 else cur_price
+    day_change_pct = (cur_price / prev_price - 1) if prev_price else None
+
+    return {
+        "ticker_resolved": resolved,
+        "data_source": source,
+        "notes": notes,
+        "current_price": cur_price,
+        "price_date": df.index[-1].strftime("%Y-%m-%d"),
+        "day_change_pct": day_change_pct,
+        "data_points": len(df),
+        "signals": signals,
+        "tally": tally,
+        "fundamentals": fundamentals,
+    }
