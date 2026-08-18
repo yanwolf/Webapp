@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
 import {
   ComposedChart, Area, Line, Scatter, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer,
+  Tooltip,
 } from 'recharts';
+import { useElementWidth } from '../useElementWidth';
 
 const TICK_STYLE = { fill: 'var(--text-faint)', fontSize: 11 };
 
@@ -82,6 +83,7 @@ export default function PriceChart({ priceSeries, trades, chartType = 'lines', o
   }, [priceSeries, isBand, lowerKey, upperKey, trades]);
 
   const everyNth = Math.max(1, Math.floor(data.length / 8));
+  const [boxRef, boxWidth] = useElementWidth();
   const Tooltip_ = makeTooltip(overlayKeys);
 
   return (
@@ -101,8 +103,9 @@ export default function PriceChart({ priceSeries, trades, chartType = 'lines', o
         <span className="legend-item"><span className="legend-tri" style={{ borderTop: '8px solid #29b389' }} />做空進場</span>
         <span className="legend-item"><span className="legend-tri" style={{ borderTop: '8px solid #8b8f98' }} />出場</span>
       </div>
-      <ResponsiveContainer width="100%" height={380}>
-        <ComposedChart data={data} margin={{ top: 4, right: 12, left: -8, bottom: 4 }}>
+      <div ref={boxRef} style={{ width: '100%' }}>
+        {boxWidth > 0 && (
+        <ComposedChart width={boxWidth} height={380} data={data} margin={{ top: 4, right: 12, left: -8, bottom: 4 }}>
           <CartesianGrid stroke="#1d2026" vertical={false} />
           <XAxis
             dataKey="date"
@@ -142,7 +145,8 @@ export default function PriceChart({ priceSeries, trades, chartType = 'lines', o
           <Scatter data={data} dataKey="exit_long" shape={(p) => <Triangle {...p} up={false} color="#8b8f98" />} isAnimationActive={false} />
           <Scatter data={data} dataKey="exit_short" shape={(p) => <Triangle {...p} up color="#8b8f98" />} isAnimationActive={false} />
         </ComposedChart>
-      </ResponsiveContainer>
+        )}
+      </div>
     </div>
   );
 }
