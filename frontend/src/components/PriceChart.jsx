@@ -59,30 +59,27 @@ export default function PriceChart({ priceSeries, trades, chartType = 'lines', o
   const upperKey = bandKeys.find((k) => k.toLowerCase().includes('upper'));
   const midKey = overlayKeys.find((k) => !bandKeys.includes(k));
 
-  const data = useMemo(
-    () => priceSeries.map((d) => (
-      isBand && lowerKey && upperKey ? { ...d, band: [d[lowerKey], d[upperKey]] } : { ...d }
-    )),
-    [priceSeries, isBand, lowerKey, upperKey]
-  );
-
-  const { longEntries, longExits, shortEntries, shortExits } = useMemo(() => {
-    const byDate = new Map(data.map((d) => [d.date, d]));
-    const longEntries = [], longExits = [], shortEntries = [], shortExits = [];
+  const data = useMemo(() => {
+    const rows = priceSeries.map((d) => (
+      isBand && lowerKey && upperKey
+        ? { ...d, band: [d[lowerKey], d[upperKey]], entry_long: null, entry_short: null, exit_long: null, exit_short: null }
+        : { ...d, entry_long: null, entry_short: null, exit_long: null, exit_short: null }
+    ));
+    // 用 Map 一次建立日期→列索引對照，避免每筆交易都線性掃描整個陣列
+    const indexByDate = new Map(rows.map((r, i) => [r.date, i]));
     (trades || []).forEach((t) => {
-      const push = (arr, dateStr, price) => {
-        if (byDate.has(dateStr)) arr.push({ date: dateStr, val: price });
-      };
+      const entryIdx = indexByDate.get(t.entry_date);
+      const exitIdx = indexByDate.get(t.exit_date);
       if (t.side === 'long') {
-        push(longEntries, t.entry_date, t.entry_price);
-        push(longExits, t.exit_date, t.exit_price);
+        if (entryIdx != null) rows[entryIdx].entry_long = t.entry_price;
+        if (exitIdx != null) rows[exitIdx].exit_long = t.exit_price;
       } else {
-        push(shortEntries, t.entry_date, t.entry_price);
-        push(shortExits, t.exit_date, t.exit_price);
+        if (entryIdx != null) rows[entryIdx].entry_short = t.entry_price;
+        if (exitIdx != null) rows[exitIdx].exit_short = t.exit_price;
       }
     });
-    return { longEntries, longExits, shortEntries, shortExits };
-  }, [data, trades]);
+    return rows;
+  }, [priceSeries, isBand, lowerKey, upperKey, trades]);
 
   const everyNth = Math.max(1, Math.floor(data.length / 8));
   const Tooltip_ = makeTooltip(overlayKeys);
@@ -140,10 +137,10 @@ export default function PriceChart({ priceSeries, trades, chartType = 'lines', o
 
           <Line dataKey="close" stroke="#e9e7e1" strokeWidth={1.2} dot={false} isAnimationActive={false} />
 
-          <Scatter data={longEntries} dataKey="val" shape={(p) => <Triangle {...p} up color="#ec5f5f" />} isAnimationActive={false} />
-          <Scatter data={shortEntries} dataKey="val" shape={(p) => <Triangle {...p} up={false} color="#29b389" />} isAnimationActive={false} />
-          <Scatter data={longExits} dataKey="val" shape={(p) => <Triangle {...p} up={false} color="#8b8f98" />} isAnimationActive={false} />
-          <Scatter data={shortExits} dataKey="val" shape={(p) => <Triangle {...p} up color="#8b8f98" />} isAnimationActive={false} />
+          <Scatter data={data} dataKey="entry_long" shape={(p) => <Triangle {...p} up color="#ec5f5f" />} isAnimationActive={false} />
+          <Scatter data={data} dataKey="entry_short" shape={(p) => <Triangle {...p} up={false} color="#29b389" />} isAnimationActive={false} />
+          <Scatter data={data} dataKey="exit_long" shape={(p) => <Triangle {...p} up={false} color="#8b8f98" />} isAnimationActive={false} />
+          <Scatter data={data} dataKey="exit_short" shape={(p) => <Triangle {...p} up color="#8b8f98" />} isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
