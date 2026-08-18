@@ -635,7 +635,16 @@ def analyze_stock(req: StockAnalysisRequest, user=Depends(auth.get_current_user)
             detail=f"「{resolved}」只抓到 {len(df)} 根日K，資料量不足以完整分析（至少需要約300根，通常是上市不久的新股或資料源涵蓋範圍不足）。"
         )
 
-    signals, tally = analyze_signals(df)
+    # 均線三刀流的原始設計是用在1小時K（20/60/240根1H K棒）上，跟其他策略用的日K是完全不同的時間跨度，
+    # 額外抓一份1小時K專門給它用；抓不到就優雅退回日K，並在結果裡註明
+    ma3_start = (_dt.now() - _td(days=700)).strftime("%Y-%m-%d")  # yfinance 對1小時K約只提供近2年資料
+    df_1h, _, _, err_1h, _ = fetch_ohlcv("tw", req.ticker, "1h", ma3_start)
+    if err_1h or df_1h is None or len(df_1h) < 300:
+        df_ma3, ma3_interval_label = None, "日K（1小時K資料不足，改用日K計算）"
+    else:
+        df_ma3, ma3_interval_label = df_1h, "1H"
+
+    signals, tally = analyze_signals(df, df_ma3=df_ma3, ma3_interval_label=ma3_interval_label)
     fundamentals = fetch_tw_fundamentals(req.ticker)
     institutional_daily = fetch_institutional_daily(req.ticker, days=20)
     margin_daily = fetch_margin_daily(req.ticker, days=10)

@@ -245,6 +245,7 @@ export default function StockAnalysisResult({ data }) {
             <thead>
               <tr>
                 <th style={{ textAlign: 'left' }}>策略</th>
+                <th style={{ textAlign: 'left' }}>週期</th>
                 <th style={{ textAlign: 'left' }}>狀態</th>
                 <th style={{ textAlign: 'left' }}>說明</th>
                 <th>進場日</th>
@@ -258,6 +259,9 @@ export default function StockAnalysisResult({ data }) {
                 return (
                   <tr key={s.strategy}>
                     <td style={{ textAlign: 'left' }}>{s.strategy_label}</td>
+                    <td style={{ textAlign: 'left', color: s.interval === '1H' ? 'var(--cyan)' : 'var(--text-faint)', fontSize: 11.5 }}>
+                      {s.interval}
+                    </td>
                     <td style={{ textAlign: 'left' }}>
                       {meta.cls ? <span className={`side-tag ${meta.cls}`}>{meta.label}</span> : <span style={{ color: 'var(--text-faint)' }}>{meta.label}</span>}
                     </td>

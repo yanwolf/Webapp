@@ -56,16 +56,31 @@ def _describe_state(strategy: str, row) -> str:
     return ""
 
 
-def analyze_signals(df, capital: float = 1_000_000.0):
-    """對全部8種策略跑到最新一根K棒，回傳每個策略目前的持倉狀態"""
+def analyze_signals(df, capital: float = 1_000_000.0, df_ma3=None, ma3_interval_label: str = "日K"):
+    """
+    對全部8種策略跑到最新一根K棒，回傳每個策略目前的持倉狀態
+
+    均線三刀流(ma3)的原始設計是用在1小時K上（20/60/240根1H K棒），跟其他策略用的日K
+    是完全不同的時間跨度，所以若有提供 df_ma3（額外抓的1小時K資料），ma3 會改用它計算，
+    其餘策略仍用日K的 df。
+    """
     signals = []
     tally = dict(bullish=0, bearish=0, neutral=0)
     cur_price = float(df["Close"].iloc[-1])
 
     for strat in ALL_SIGNAL_STRATEGIES:
         params = DEFAULT_PARAMS.get(strat, {})
+
+        use_df = df
+        interval_label = "日K"
+        strat_cur_price = cur_price
+        if strat == "ma3" and df_ma3 is not None:
+            use_df = df_ma3
+            interval_label = ma3_interval_label
+            strat_cur_price = float(df_ma3["Close"].iloc[-1])
+
         try:
-            out = run_strategy(df, strat, params, allow_short=True, capital=capital, bars_per_day=1)
+            out = run_strategy(use_df, strat, params, allow_short=True, capital=capital, bars_per_day=1)
         except Exception:
             continue
 
@@ -75,12 +90,16 @@ def analyze_signals(df, capital: float = 1_000_000.0):
         if op:
             side = op["side"]
             entry_price = float(op["entry_price"])
-            entry_date = op["entry_date"].strftime("%Y-%m-%d")
+            entry_ts = op["entry_date"]
+            if interval_label == "日K":
+                entry_date = entry_ts.strftime("%Y-%m-%d")
+            else:
+                entry_date = entry_ts.strftime("%Y-%m-%d %H:%M")
             if side == "long":
-                unrealized = cur_price / entry_price - 1
+                unrealized = strat_cur_price / entry_price - 1
                 tally["bullish"] += 1
             else:
-                unrealized = entry_price / cur_price - 1
+                unrealized = entry_price / strat_cur_price - 1
                 tally["bearish"] += 1
         else:
             side, entry_price, entry_date, unrealized = "flat", None, None, None
@@ -89,6 +108,7 @@ def analyze_signals(df, capital: float = 1_000_000.0):
         signals.append(dict(
             strategy=strat,
             strategy_label=STRATEGY_LABELS.get(strat, strat),
+            interval=interval_label,
             position=side,
             entry_date=entry_date,
             entry_price=entry_price,
