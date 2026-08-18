@@ -19,11 +19,17 @@ import numpy as np
 import pandas as pd
 
 
-def compute_ma_indicators(df: pd.DataFrame, fast: int = 20, mid: int = 60, slow: int = 240) -> pd.DataFrame:
+def compute_ma_indicators(df: pd.DataFrame, fast: int = 20, mid: int = 60, slow: int = 240,
+                           ma_type: str = "ema") -> pd.DataFrame:
     df = df.copy()
-    df["ema_fast"] = df["Close"].ewm(span=fast, adjust=False).mean()
-    df["ema_mid"] = df["Close"].ewm(span=mid, adjust=False).mean()
-    df["ema_slow"] = df["Close"].ewm(span=slow, adjust=False).mean()
+    if ma_type == "sma":
+        df["ema_fast"] = df["Close"].rolling(fast).mean()
+        df["ema_mid"] = df["Close"].rolling(mid).mean()
+        df["ema_slow"] = df["Close"].rolling(slow).mean()
+    else:
+        df["ema_fast"] = df["Close"].ewm(span=fast, adjust=False).mean()
+        df["ema_mid"] = df["Close"].ewm(span=mid, adjust=False).mean()
+        df["ema_slow"] = df["Close"].ewm(span=slow, adjust=False).mean()
     return df
 
 
@@ -58,8 +64,9 @@ def detect_ma_signals(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def build_ma_signals(df: pd.DataFrame, fast: int = 20, mid: int = 60, slow: int = 240) -> pd.DataFrame:
-    df = compute_ma_indicators(df, fast=fast, mid=mid, slow=slow)
+def build_ma_signals(df: pd.DataFrame, fast: int = 20, mid: int = 60, slow: int = 240,
+                      ma_type: str = "ema") -> pd.DataFrame:
+    df = compute_ma_indicators(df, fast=fast, mid=mid, slow=slow, ma_type=ma_type)
     df = detect_ma_signals(df)
     return df
 

@@ -59,6 +59,7 @@ export default function App() {
     ma_fast: 20,
     ma_mid: 60,
     ma_slow: 240,
+    ma_type: 'sma',
     cross_fast: 20,
     cross_slow: 60,
     cross_ma_type: 'sma',

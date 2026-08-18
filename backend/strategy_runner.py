@@ -30,7 +30,7 @@ STRATEGY_LABELS = {
 # 用固定百分比停損還是 ATR 動態停損（同一個請求只會用到其中一組策略參數，共用欄位不會互相干擾）
 DEFAULT_PARAMS = {
     "bollinger": dict(bb_window=20, bb_std=2.0, vol_mult=1.5),
-    "ma3": dict(ma_fast=20, ma_mid=60, ma_slow=240),
+    "ma3": dict(ma_fast=20, ma_mid=60, ma_slow=240, ma_type="sma"),
     "ma_cross": dict(cross_fast=20, cross_slow=60, cross_ma_type="sma",
                       stop_type="pct", stop_pct=0.08, atr_period=14, atr_mult=2.0),
     "donchian": dict(donch_entry_window=20, donch_exit_window=10),
@@ -83,7 +83,8 @@ def run_strategy(df, strategy: str, params: dict, allow_short: bool = True,
         chart_type = "none"
 
     elif strategy == "ma3":
-        sig_df = build_ma_signals(df, fast=p["ma_fast"], mid=p["ma_mid"], slow=p["ma_slow"])
+        sig_df = build_ma_signals(df, fast=p["ma_fast"], mid=p["ma_mid"], slow=p["ma_slow"],
+                                   ma_type=p.get("ma_type", "ema"))
         res = run_backtest_ma(sig_df, allow_short=allow_short, init_capital=capital)
         overlay_keys = ["ema_fast", "ema_mid", "ema_slow"]
         chart_type = "lines"

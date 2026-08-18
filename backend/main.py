@@ -158,6 +158,7 @@ class BacktestRequest(BaseModel):
     ma_fast: int = Field(20, ge=2, le=200)
     ma_mid: int = Field(60, ge=5, le=400)
     ma_slow: int = Field(240, ge=10, le=800)
+    ma_type: Literal["sma", "ema"] = Field("sma")
     cross_fast: int = Field(20, ge=2, le=200)
     cross_slow: int = Field(60, ge=5, le=400)
     cross_ma_type: Literal["sma", "ema"] = Field("sma")
@@ -191,7 +192,7 @@ class BacktestRequest(BaseModel):
 def _req_to_params(req: BacktestRequest) -> Dict[str, Any]:
     return dict(
         bb_window=req.bb_window, bb_std=req.bb_std, vol_mult=req.vol_mult,
-        ma_fast=req.ma_fast, ma_mid=req.ma_mid, ma_slow=req.ma_slow,
+        ma_fast=req.ma_fast, ma_mid=req.ma_mid, ma_slow=req.ma_slow, ma_type=req.ma_type,
         cross_fast=req.cross_fast, cross_slow=req.cross_slow, cross_ma_type=req.cross_ma_type,
         donch_entry_window=req.donch_entry_window, donch_exit_window=req.donch_exit_window,
         rsi_period=req.rsi_period, rsi_oversold=req.rsi_oversold, rsi_overbought=req.rsi_overbought,

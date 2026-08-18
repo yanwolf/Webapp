@@ -108,15 +108,22 @@ export default function ControlPanel({ form, setForm, onSubmit, loading }) {
       {form.strategy === 'ma3' && (
         <>
           <div className="field">
-            <label>快刀 EMA</label>
+            <label>均線類型</label>
+            <select value={form.ma_type} onChange={update('ma_type')}>
+              <option value="sma">SMA 簡單均線</option>
+              <option value="ema">EMA 指數均線</option>
+            </select>
+          </div>
+          <div className="field">
+            <label>快刀週期</label>
             <input type="number" value={form.ma_fast} onChange={update('ma_fast')} min={2} max={200} />
           </div>
           <div className="field">
-            <label>中刀 EMA</label>
+            <label>中刀週期</label>
             <input type="number" value={form.ma_mid} onChange={update('ma_mid')} min={5} max={400} />
           </div>
           <div className="field">
-            <label>慢刀 EMA</label>
+            <label>慢刀週期</label>
             <input type="number" value={form.ma_slow} onChange={update('ma_slow')} min={10} max={800} />
           </div>
         </>
