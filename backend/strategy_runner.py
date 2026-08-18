@@ -5,7 +5,7 @@ import itertools
 from bollinger_strategy import (
     compute_indicators, detect_breakout_signals, detect_divergence_signals, run_backtest,
 )
-from ma_strategy import build_ma_signals, run_backtest_ma
+from ma_strategy import build_ma_signals
 from generic_backtest import run_generic_backtest, run_buy_and_hold
 from ma_cross_strategy import compute_ma_cross_signals
 from donchian_strategy import compute_donchian_signals
@@ -84,8 +84,8 @@ def run_strategy(df, strategy: str, params: dict, allow_short: bool = True,
 
     elif strategy == "ma3":
         sig_df = build_ma_signals(df, fast=p["ma_fast"], mid=p["ma_mid"], slow=p["ma_slow"],
-                                   ma_type=p.get("ma_type", "ema"))
-        res = run_backtest_ma(sig_df, allow_short=allow_short, init_capital=capital)
+                                   ma_type=p.get("ma_type", "sma"))
+        res = run_generic_backtest(sig_df, allow_short=allow_short, init_capital=capital)
         overlay_keys = ["ema_fast", "ema_mid", "ema_slow"]
         chart_type = "lines"
 

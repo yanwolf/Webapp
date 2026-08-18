@@ -31,11 +31,11 @@ def _describe_state(strategy: str, row) -> str:
             pos = "偏上緣" if row["Close"] > row["mid"] else "偏下緣"
             return f"收盤價在通道中軌{pos}（中軌 {row['mid']:.1f}）"
         if strategy == "ma3":
-            if row["ema_fast"] > row["ema_mid"] > row["ema_slow"]:
-                return "快中慢刀呈多頭排列"
-            if row["ema_fast"] < row["ema_mid"] < row["ema_slow"]:
-                return "快中慢刀呈空頭排列"
-            return "三線糾結，方向不明"
+            if row.get("bullish_alignment"):
+                return f"目前判定多頭排列（收盤{row['Close']:.1f}／分水嶺60線{row['ema_mid']:.1f}）"
+            if row.get("bearish_alignment"):
+                return f"目前判定空頭排列（收盤{row['Close']:.1f}／分水嶺60線{row['ema_mid']:.1f}）"
+            return f"排列糾結，方向不明（快{row['ema_fast']:.1f}／中{row['ema_mid']:.1f}／慢{row['ema_slow']:.1f}）"
         if strategy == "ma_cross":
             rel = "之上" if row["ma_fast"] > row["ma_slow"] else "之下"
             return f"快線目前在慢線{rel}"
