@@ -176,18 +176,24 @@ export default function App() {
         )}
       </div>
 
-      {tab === 'home' ? (
+      <div style={{ display: tab === 'home' ? 'block' : 'none' }}>
         <HomePage onNavigate={setTab} />
-      ) : tab === 'watchlist' ? (
+      </div>
+      <div style={{ display: tab === 'watchlist' ? 'block' : 'none' }}>
         <WatchlistPage />
-      ) : tab === 'compare' ? (
+      </div>
+      <div style={{ display: tab === 'compare' ? 'block' : 'none' }}>
         <ComparePage />
-      ) : tab === 'optimize' ? (
+      </div>
+      <div style={{ display: tab === 'optimize' ? 'block' : 'none' }}>
         <OptimizePage />
-      ) : tab === 'admin' ? (
-        <AdminPage currentUserId={me?.id} />
-      ) : (
-      <>
+      </div>
+      {me?.is_admin && (
+        <div style={{ display: tab === 'admin' ? 'block' : 'none' }}>
+          <AdminPage currentUserId={me?.id} />
+        </div>
+      )}
+      <div style={{ display: tab === 'backtest' ? 'block' : 'none' }}>
       <p className="hero-sub">
         {STRATEGY_SUBTITLE[form.strategy]} — 輸入任一美股、台股或加密貨幣代碼，立即檢視策略歷史績效。
       </p>
@@ -243,8 +249,7 @@ export default function App() {
       <footer className="note">
         資料來源：Yahoo Finance（經 yfinance 抓取）。策略邏輯為量化重建，僅供研究與策略驗證使用，不構成投資建議；歷史績效不代表未來表現。
       </footer>
-      </>
-      )}
+      </div>
     </div>
   );
 }
