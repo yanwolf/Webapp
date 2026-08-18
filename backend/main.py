@@ -34,7 +34,7 @@ import telegram_client
 from market_data import fetch_ohlcv, sanitize, INTERVAL_META
 from strategy_runner import (
     run_strategy, STRATEGY_LABELS, DEFAULT_PARAMS, min_bars_for_strategy,
-    ALL_SIGNAL_STRATEGIES, STYLE_PRESETS,
+    ALL_SIGNAL_STRATEGIES, STYLE_PRESETS, OPTIMIZE_GRIDS, PARAM_LABELS,
 )
 from ticker_search import search_tw, search_us, search_crypto
 from scheduler import start_scheduler
@@ -387,6 +387,89 @@ def compare_strategies(req: CompareRequest, user=Depends(auth.get_current_user))
         "notes": notes,
         "buy_hold_cagr": buy_hold_cagr,
         "results": results,
+    }
+
+
+# ======================================================================
+# 參數最佳化：單一策略掃過預先設計好的參數網格，找出歷史績效較好的組合
+# ======================================================================
+class OptimizeRequest(BaseModel):
+    market: Literal["us", "tw", "crypto"]
+    ticker: str
+    strategy: Literal["bollinger", "ma3", "ma_cross", "donchian", "rsi", "macd", "atr_channel", "fvg"]
+    interval: Literal["1d", "4h", "1h", "15m", "5m", "1m"] = Field("1d")
+    start: str = Field("2015-01-01")
+    end: Optional[str] = Field(None)
+    capital: float = Field(1_000_000, gt=0)
+    allow_short: bool = Field(True)
+
+
+MAX_OPTIMIZE_COMBOS = 100
+
+
+@app.post("/api/optimize-strategy")
+def optimize_strategy(req: OptimizeRequest, user=Depends(auth.get_current_user)):
+    df, resolved, notes, err, source = fetch_ohlcv(req.market, req.ticker, req.interval, req.start, req.end)
+    if err:
+        status = 404 if "抓不到" in err else 502
+        raise HTTPException(status_code=status, detail=err)
+
+    meta = INTERVAL_META[req.interval]
+    grid_fn = OPTIMIZE_GRIDS.get(req.strategy)
+    if not grid_fn:
+        raise HTTPException(status_code=422, detail=f"「{STRATEGY_LABELS.get(req.strategy, req.strategy)}」尚未支援參數最佳化")
+
+    combos = list(grid_fn())[:MAX_OPTIMIZE_COMBOS]
+
+    from bollinger_strategy import compute_raw_metrics
+
+    # 先跑一次買進持有當比較基準
+    bh_out = run_strategy(df, "buy_hold", {}, allow_short=req.allow_short,
+                           capital=req.capital, bars_per_day=meta["bars_per_day"])
+    bh_metrics = compute_raw_metrics(bh_out["res"]["equity"], bh_out["res"]["trades"],
+                                      init_capital=req.capital, freq_per_year=int(252 * meta["bars_per_day"]))
+
+    results = []
+    skipped_insufficient_data = 0
+    for combo in combos:
+        params = {**DEFAULT_PARAMS.get(req.strategy, {}), **combo}
+        min_needed = min_bars_for_strategy(req.strategy, params, base_min=MIN_BARS)
+        if len(df) < min_needed:
+            skipped_insufficient_data += 1
+            continue
+        try:
+            out = run_strategy(df, req.strategy, params, allow_short=req.allow_short,
+                                capital=req.capital, bars_per_day=meta["bars_per_day"])
+            m = compute_raw_metrics(out["res"]["equity"], out["res"]["trades"], init_capital=req.capital,
+                                     freq_per_year=int(252 * meta["bars_per_day"]))
+            beats = (m["cagr"] is not None and bh_metrics["cagr"] is not None and m["cagr"] > bh_metrics["cagr"])
+            results.append(dict(params=combo, metrics=m, beats_buy_hold=beats))
+        except Exception:
+            continue
+
+    def sort_key(r):
+        c = r["metrics"]["cagr"] if r["metrics"] and r["metrics"]["cagr"] is not None else -999
+        return -c
+    results.sort(key=sort_key)
+
+    param_keys = list(combos[0].keys()) if combos else []
+
+    return {
+        "ticker_resolved": resolved,
+        "data_source": source,
+        "strategy": req.strategy,
+        "strategy_label": STRATEGY_LABELS.get(req.strategy, req.strategy),
+        "interval": req.interval,
+        "data_points": len(df),
+        "date_range": [df.index[0].strftime("%Y-%m-%d"), df.index[-1].strftime("%Y-%m-%d")],
+        "notes": notes,
+        "param_keys": param_keys,
+        "param_labels": {k: PARAM_LABELS.get(k, k) for k in param_keys},
+        "total_combos": len(combos),
+        "tested_combos": len(results),
+        "skipped_insufficient_data": skipped_insufficient_data,
+        "buy_hold_metrics": bh_metrics,
+        "results": results[:30],
     }
 
 

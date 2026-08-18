@@ -52,6 +52,18 @@ export default function HomePage({ onNavigate }) {
           <div style={{ display: 'flex', gap: 14 }}>
             <div className="step-num">3</div>
             <div>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>覺得策略沒發揮全力？試試參數最佳化</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 13.5, lineHeight: 1.7 }}>
+                策略內建的預設參數不一定適合每檔標的。去「參數最佳化」頁籤，選定策略後系統會自動掃過多組參數組合，
+                找出這檔標的、這段時間裡歷史表現較好的設定。
+              </div>
+              <button className="link-btn" onClick={() => onNavigate('optimize')}>前往參數最佳化 →</button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 14 }}>
+            <div className="step-num">4</div>
+            <div>
               <div style={{ fontWeight: 600, marginBottom: 4 }}>設定追蹤，讓系統自動幫你盯盤</div>
               <div style={{ color: 'var(--text-muted)', fontSize: 13.5, lineHeight: 1.7 }}>
                 找到喜歡的策略組合後，去「追蹤清單」頁籤設定你自己的 Telegram Bot（頁面裡有教學），

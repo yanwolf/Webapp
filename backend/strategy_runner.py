@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """策略執行的共用邏輯，供 /api/backtest 與背景排程共同呼叫，避免重複程式碼"""
+import itertools
+
 from bollinger_strategy import (
     compute_indicators, detect_breakout_signals, detect_divergence_signals, run_backtest,
 )
@@ -145,6 +147,78 @@ ALL_SIGNAL_STRATEGIES = ["bollinger", "ma3", "ma_cross", "donchian", "rsi", "mac
 STYLE_PRESETS = {
     "short": dict(label="短沖", interval="1h", strategies=ALL_SIGNAL_STRATEGIES),
     "swing": dict(label="長線波段", interval="1d", strategies=ALL_SIGNAL_STRATEGIES),
+}
+
+
+# ----------------------------------------------------------------------
+# 參數最佳化：每個策略預先設計一組合理的搜尋網格（值太多會跑太久，這裡控制在數十到百組內）
+# ----------------------------------------------------------------------
+def _grid_bollinger():
+    for bb_window, bb_std, vol_mult in itertools.product([15, 20, 25], [1.75, 2.0, 2.25, 2.5], [1.2, 1.5, 1.8]):
+        yield dict(bb_window=bb_window, bb_std=bb_std, vol_mult=vol_mult)
+
+
+def _grid_ma3():
+    for fast, mid, slow in itertools.product([10, 15, 20], [40, 60, 80], [150, 200, 240, 300]):
+        if fast < mid < slow:
+            yield dict(ma_fast=fast, ma_mid=mid, ma_slow=slow)
+
+
+def _grid_ma_cross():
+    for fast, slow, stop_pct in itertools.product([5, 10, 15, 20], [30, 50, 70, 100], [0.05, 0.08, 0.12]):
+        if fast < slow:
+            yield dict(cross_fast=fast, cross_slow=slow, stop_type="pct", stop_pct=stop_pct)
+
+
+def _grid_donchian():
+    for entry, exit_ in itertools.product([10, 15, 20, 30, 40], [5, 10, 15, 20]):
+        if exit_ < entry:
+            yield dict(donch_entry_window=entry, donch_exit_window=exit_)
+
+
+def _grid_rsi():
+    for period, os_, ob_ in itertools.product([7, 10, 14, 21], [20, 25, 30, 35], [65, 70, 75, 80]):
+        yield dict(rsi_period=period, rsi_oversold=os_, rsi_overbought=ob_)
+
+
+def _grid_macd():
+    for fast, slow, signal in itertools.product([8, 12, 16], [20, 26, 32], [5, 9, 12]):
+        if fast < slow:
+            yield dict(macd_fast=fast, macd_slow=slow, macd_signal=signal)
+
+
+def _grid_atr_channel():
+    for period, ma_window, mult in itertools.product([7, 14, 21], [10, 20, 30], [1.5, 2.0, 2.5, 3.0]):
+        yield dict(atr_ch_period=period, atr_ch_ma_window=ma_window, atr_ch_mult=mult)
+
+
+def _grid_fvg():
+    for wait, stop_mult, target_mult in itertools.product([10, 20, 30], [1.0, 1.5, 2.0], [2.0, 3.0, 4.0]):
+        if target_mult > stop_mult:
+            yield dict(fvg_max_wait=wait, fvg_atr_stop_mult=stop_mult, fvg_atr_target_mult=target_mult)
+
+
+OPTIMIZE_GRIDS = {
+    "bollinger": _grid_bollinger,
+    "ma3": _grid_ma3,
+    "ma_cross": _grid_ma_cross,
+    "donchian": _grid_donchian,
+    "rsi": _grid_rsi,
+    "macd": _grid_macd,
+    "atr_channel": _grid_atr_channel,
+    "fvg": _grid_fvg,
+}
+
+# 每個參數的中文標籤，給前端表格用
+PARAM_LABELS = {
+    "bb_window": "布林週期", "bb_std": "標準差倍數", "vol_mult": "爆量倍數",
+    "ma_fast": "快刀", "ma_mid": "中刀", "ma_slow": "慢刀",
+    "cross_fast": "快線", "cross_slow": "慢線", "stop_pct": "停損%",
+    "donch_entry_window": "突破窗口", "donch_exit_window": "出場窗口",
+    "rsi_period": "RSI週期", "rsi_oversold": "超賣門檻", "rsi_overbought": "超買門檻",
+    "macd_fast": "快線EMA", "macd_slow": "慢線EMA", "macd_signal": "訊號線EMA",
+    "atr_ch_period": "ATR週期", "atr_ch_ma_window": "中軌週期", "atr_ch_mult": "通道倍數",
+    "fvg_max_wait": "等待K棒數", "fvg_atr_stop_mult": "停損倍數", "fvg_atr_target_mult": "停利倍數",
 }
 
 

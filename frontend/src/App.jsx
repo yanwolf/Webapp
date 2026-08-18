@@ -9,6 +9,7 @@ import EquityChart from './components/EquityChart';
 import TradesTable from './components/TradesTable';
 import WatchlistPage from './WatchlistPage';
 import ComparePage from './ComparePage';
+import OptimizePage from './OptimizePage';
 import HomePage from './HomePage';
 import AdminPage from './AdminPage';
 import LoginPage from './LoginPage';
@@ -168,6 +169,7 @@ export default function App() {
         <button className={`tab-btn ${tab === 'home' ? 'active' : ''}`} onClick={() => setTab('home')}>首頁</button>
         <button className={`tab-btn ${tab === 'backtest' ? 'active' : ''}`} onClick={() => setTab('backtest')}>回測</button>
         <button className={`tab-btn ${tab === 'compare' ? 'active' : ''}`} onClick={() => setTab('compare')}>策略比較</button>
+        <button className={`tab-btn ${tab === 'optimize' ? 'active' : ''}`} onClick={() => setTab('optimize')}>參數最佳化</button>
         <button className={`tab-btn ${tab === 'watchlist' ? 'active' : ''}`} onClick={() => setTab('watchlist')}>追蹤清單</button>
         {me?.is_admin && (
           <button className={`tab-btn ${tab === 'admin' ? 'active' : ''}`} onClick={() => setTab('admin')}>管理員</button>
@@ -180,6 +182,8 @@ export default function App() {
         <WatchlistPage />
       ) : tab === 'compare' ? (
         <ComparePage />
+      ) : tab === 'optimize' ? (
+        <OptimizePage />
       ) : tab === 'admin' ? (
         <AdminPage currentUserId={me?.id} />
       ) : (
