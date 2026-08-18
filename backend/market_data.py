@@ -214,15 +214,22 @@ def _fetch_yfinance(market: str, ticker: str, interval: str, start: str, end: st
 
     effective_start, range_note = clamp_start_date(start, end, interval)
 
+    # yfinance 的 end 參數是「不包含當天」的，直接傳今天的日期會系統性漏掉今天整天的資料，
+    # 所以內部請求時要多加一天，確保今天的資料真的抓得到
     try:
-        raw = yf.download(resolved, start=effective_start, end=end,
+        end_plus_one = (datetime.strptime(end, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+    except Exception:
+        end_plus_one = end
+
+    try:
+        raw = yf.download(resolved, start=effective_start, end=end_plus_one,
                            interval=yf_interval, auto_adjust=True, progress=False)
     except Exception:
         raw = None
 
     if raw is None or raw.empty:
         try:
-            raw = yf.Ticker(resolved).history(start=effective_start, end=end,
+            raw = yf.Ticker(resolved).history(start=effective_start, end=end_plus_one,
                                                interval=yf_interval, auto_adjust=True)
         except Exception:
             raw = None

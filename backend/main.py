@@ -24,6 +24,7 @@ import os
 import traceback
 from typing import Optional, Literal, Dict, Any
 
+import pandas as pd
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -647,10 +648,24 @@ def analyze_stock(req: StockAnalysisRequest, user=Depends(auth.get_current_user)
         # 導致「最新一根1小時K」的收盤價停在13:00、不是真正的當日收盤價。
         # 已經有日K的正確今日收盤價，兩者若對不上就用日K的價格修正回去，
         # 確保均線三刀流看到的是真正的當日收盤，不是被截斷的尾盤價格。
+        # yfinance 的1小時K在台股尾盤(13:00~13:30)常常沒抓到，甚至有時候整批資料會慢一整天，
+        # 導致「最新一根1小時K」的收盤價停在昨天或前一根，不是真正的當日收盤價。
+        # 已經有日K的正確今日收盤價，用它來補正：
+        #   - 1小時K的最後日期已經比日K舊 → 額外補一根代表當日收盤的K棒
+        #   - 兩邊同一天但收盤價對不上 → 直接把最後一根的收盤價改成正確值
         last_1h_date = df_1h.index[-1].date()
         last_daily_date = df.index[-1].date()
-        if last_1h_date == last_daily_date:
-            true_close = float(df["Close"].iloc[-1])
+        true_close = float(df["Close"].iloc[-1])
+
+        if last_1h_date < last_daily_date:
+            new_ts = pd.Timestamp(last_daily_date) + pd.Timedelta(hours=13, minutes=30)
+            new_row = pd.DataFrame(
+                {"Open": [true_close], "High": [true_close], "Low": [true_close],
+                 "Close": [true_close], "Volume": [0]},
+                index=[new_ts],
+            )
+            df_1h = pd.concat([df_1h, new_row])
+        elif last_1h_date == last_daily_date:
             last_1h_close = float(df_1h["Close"].iloc[-1])
             if abs(true_close - last_1h_close) > 0.01:
                 close_col = df_1h.columns.get_loc("Close")
