@@ -7,11 +7,14 @@ function pct(v) {
 }
 function num(v) {
   if (v == null) return '—';
-  return v.toLocaleString('zh-TW');
+  return Math.round(v).toLocaleString('zh-TW');
 }
-function signedNum(v) {
-  if (v == null) return '—';
-  return `${v >= 0 ? '+' : ''}${v.toLocaleString('zh-TW')}`;
+function flowNum(v) {
+  // 資金流向數字：加上方向箭頭 + 正負號，一起顯示
+  if (v == null) return { text: '—', cls: '' };
+  const arrow = v > 0 ? '▲' : v < 0 ? '▼' : '';
+  const cls = v > 0 ? 'flow-up' : v < 0 ? 'flow-down' : '';
+  return { text: `${arrow} ${v >= 0 ? '+' : ''}${Math.round(v).toLocaleString('zh-TW')}`, cls };
 }
 
 const POSITION_META = {
@@ -26,6 +29,9 @@ export default function StockAnalysisResult({ data }) {
     ticker_resolved, current_price, price_date, day_change_pct, tally, signals,
     fundamentals, institutional_daily, margin_daily, volume_stats, summary_text,
   } = data;
+
+  const latestInst = institutional_daily && institutional_daily.length ? institutional_daily[institutional_daily.length - 1] : null;
+  const latestMargin = margin_daily && margin_daily.length ? margin_daily[margin_daily.length - 1] : null;
 
   return (
     <div>
@@ -46,148 +52,194 @@ export default function StockAnalysisResult({ data }) {
 
       {summary_text && (
         <div className="chart-panel">
-          <div className="chart-panel-title">整理摘要 <span className="badge">規則統計，非AI生成</span></div>
+          <div className="chart-panel-title">
+            <span className="section-title-icon">📋</span>整理摘要 <span className="badge">規則統計，非AI生成</span>
+          </div>
           <p style={{ color: 'var(--text)', fontSize: 13.5, lineHeight: 1.9, marginTop: 8 }}>{summary_text}</p>
         </div>
       )}
 
-      <div className="metrics-grid">
-        <div className="metric-card">
-          <div className="metric-label">偏多策略數</div>
-          <div className="metric-value up">{tally.bullish}</div>
-        </div>
-        <div className="metric-card">
-          <div className="metric-label">偏空策略數</div>
-          <div className="metric-value down">{tally.bearish}</div>
-        </div>
-        <div className="metric-card">
-          <div className="metric-label">中性策略數</div>
-          <div className="metric-value">{tally.neutral}</div>
-        </div>
-        <div className="metric-card">
-          <div className="metric-label">共檢視策略</div>
-          <div className="metric-value">{signals.length}</div>
+      <div className="chart-panel">
+        <div className="chart-panel-title"><span className="section-title-icon">🎯</span>技術面總覽</div>
+        <div className="stat-row">
+          <div className="stat-box">
+            <div className="stat-box-label">偏多策略數</div>
+            <div className="stat-box-value up">{tally.bullish}</div>
+          </div>
+          <div className="stat-box">
+            <div className="stat-box-label">偏空策略數</div>
+            <div className="stat-box-value down">{tally.bearish}</div>
+          </div>
+          <div className="stat-box">
+            <div className="stat-box-label">中性策略數</div>
+            <div className="stat-box-value">{tally.neutral}</div>
+          </div>
+          <div className="stat-box">
+            <div className="stat-box-label">共檢視策略</div>
+            <div className="stat-box-value" style={{ color: 'var(--gold)' }}>{signals.length}</div>
+          </div>
         </div>
       </div>
 
-      {fundamentals ? (
+      {fundamentals && (
         <div className="chart-panel">
-          <div className="chart-panel-title">基本面（FinMind）</div>
-          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginTop: 10 }}>
-            <div>
-              <div className="metric-label">本益比 PER</div>
-              <div className="mono" style={{ fontSize: 18 }}>{fundamentals.per ?? '—'}</div>
+          <div className="chart-panel-title"><span className="section-title-icon">💹</span>基本面（FinMind）</div>
+          <div className="stat-row">
+            <div className="stat-box">
+              <div className="stat-box-label">本益比 PER</div>
+              <div className="stat-box-value">{fundamentals.per ?? '—'}</div>
             </div>
-            <div>
-              <div className="metric-label">股價淨值比 PBR</div>
-              <div className="mono" style={{ fontSize: 18 }}>{fundamentals.pbr ?? '—'}</div>
+            <div className="stat-box">
+              <div className="stat-box-label">股價淨值比 PBR</div>
+              <div className="stat-box-value">{fundamentals.pbr ?? '—'}</div>
             </div>
-            <div>
-              <div className="metric-label">殖利率</div>
-              <div className="mono" style={{ fontSize: 18 }}>{fundamentals.dividend_yield != null ? `${fundamentals.dividend_yield}%` : '—'}</div>
+            <div className="stat-box">
+              <div className="stat-box-label">殖利率</div>
+              <div className="stat-box-value">{fundamentals.dividend_yield != null ? `${fundamentals.dividend_yield}%` : '—'}</div>
             </div>
           </div>
         </div>
-      ) : (
+      )}
+
+      {!fundamentals && (
         <div className="info-box" style={{ marginBottom: 24 }}>
           ℹ️ 基本面資料未顯示，可能是後端尚未設定 FINMIND_API_TOKEN，或這檔標的暫時查不到相關資料。
         </div>
       )}
 
-      {volume_stats && (volume_stats.vol_ratio != null) && (
+      {volume_stats && volume_stats.vol_ratio != null && (
         <div className="chart-panel">
-          <div className="chart-panel-title">量能與波動</div>
-          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginTop: 10 }}>
-            <div>
-              <div className="metric-label">近5日均量</div>
-              <div className="mono" style={{ fontSize: 16 }}>{num(Math.round(volume_stats.vol_5d))}</div>
+          <div className="chart-panel-title"><span className="section-title-icon">📈</span>量能與波動</div>
+          <div className="stat-row">
+            <div className="stat-box">
+              <div className="stat-box-label">近5日均量</div>
+              <div className="stat-box-value" style={{ fontSize: 16 }}>{num(volume_stats.vol_5d)}</div>
             </div>
-            <div>
-              <div className="metric-label">近20日均量</div>
-              <div className="mono" style={{ fontSize: 16 }}>{num(Math.round(volume_stats.vol_20d))}</div>
+            <div className="stat-box">
+              <div className="stat-box-label">近20日均量</div>
+              <div className="stat-box-value" style={{ fontSize: 16 }}>{num(volume_stats.vol_20d)}</div>
             </div>
-            <div>
-              <div className="metric-label">量比（5日/20日）</div>
-              <div className="mono" style={{ fontSize: 16 }}>{volume_stats.vol_ratio.toFixed(2)}</div>
+            <div className="stat-box">
+              <div className="stat-box-label">量比（5日/20日）</div>
+              <div className="stat-box-value" style={{ fontSize: 16 }}>{volume_stats.vol_ratio.toFixed(2)}</div>
             </div>
-            <div>
-              <div className="metric-label">近20日平均振幅</div>
-              <div className="mono" style={{ fontSize: 16 }}>{volume_stats.avg_swing_20d != null ? `${(volume_stats.avg_swing_20d * 100).toFixed(1)}%` : '—'}</div>
+            <div className="stat-box">
+              <div className="stat-box-label">近20日平均振幅</div>
+              <div className="stat-box-value" style={{ fontSize: 16 }}>
+                {volume_stats.avg_swing_20d != null ? `${(volume_stats.avg_swing_20d * 100).toFixed(1)}%` : '—'}
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {institutional_daily && institutional_daily.length > 0 && (
+      {latestInst && (
         <div className="chart-panel">
           <div className="chart-panel-title">
-            近期三大法人買賣超 <span className="badge">單位：張，正數買超、負數賣超</span>
+            <span className="section-title-icon">🏦</span>三大法人買賣超 <span className="badge">{latestInst.date}</span>
           </div>
-          <div className="table-wrap" style={{ marginTop: 8 }}>
-            <table className="trades">
-              <thead>
-                <tr>
-                  <th style={{ textAlign: 'left' }}>日期</th>
-                  <th>外資</th>
-                  <th>投信</th>
-                  <th>自營</th>
-                  <th>合計</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...institutional_daily].reverse().map((row) => (
-                  <tr key={row.date}>
-                    <td style={{ textAlign: 'left' }}>{row.date}</td>
-                    <td className={row.foreign >= 0 ? 'up' : 'down'}>{signedNum(row.foreign)}</td>
-                    <td className={row.trust >= 0 ? 'up' : 'down'}>{signedNum(row.trust)}</td>
-                    <td className={row.dealer >= 0 ? 'up' : 'down'}>{signedNum(row.dealer)}</td>
-                    <td className={row.total >= 0 ? 'up' : 'down'} style={{ fontWeight: 700 }}>{signedNum(row.total)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="stat-row">
+            <div className="stat-box">
+              <div className="stat-box-label">外資</div>
+              <div className={`stat-box-value ${flowNum(latestInst.foreign).cls}`}>{flowNum(latestInst.foreign).text}</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-box-label">投信</div>
+              <div className={`stat-box-value ${flowNum(latestInst.trust).cls}`}>{flowNum(latestInst.trust).text}</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-box-label">自營商</div>
+              <div className={`stat-box-value ${flowNum(latestInst.dealer).cls}`}>{flowNum(latestInst.dealer).text}</div>
+            </div>
           </div>
+          <div className="stat-inline-row">
+            <span className="stat-inline-label">三大法人合計</span>
+            <span className={`stat-inline-value ${flowNum(latestInst.total).cls}`}>{flowNum(latestInst.total).text} 張</span>
+          </div>
+          <div style={{ fontSize: 11.5, color: 'var(--text-faint)', marginTop: 4 }}>單位：張。正數買超（綠）、負數賣超（紅），收盤後公布</div>
+
+          {institutional_daily.length > 1 && (
+            <details className="collapse-detail">
+              <summary>查看近{institutional_daily.length}日詳細數字</summary>
+              <div className="table-wrap">
+                <table className="trades">
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'left' }}>日期</th>
+                      <th>外資</th><th>投信</th><th>自營</th><th>合計</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...institutional_daily].reverse().map((row) => (
+                      <tr key={row.date}>
+                        <td style={{ textAlign: 'left' }}>{row.date}</td>
+                        <td className={flowNum(row.foreign).cls}>{flowNum(row.foreign).text}</td>
+                        <td className={flowNum(row.trust).cls}>{flowNum(row.trust).text}</td>
+                        <td className={flowNum(row.dealer).cls}>{flowNum(row.dealer).text}</td>
+                        <td className={flowNum(row.total).cls} style={{ fontWeight: 700 }}>{flowNum(row.total).text}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          )}
         </div>
       )}
 
-      {margin_daily && margin_daily.length > 0 && (
+      {latestMargin && (
         <div className="chart-panel">
           <div className="chart-panel-title">
-            融資融券餘額 <span className="badge">單位：張</span>
+            <span className="section-title-icon">💰</span>融資融券 <span className="badge">{latestMargin.date}</span>
           </div>
-          <div className="table-wrap" style={{ marginTop: 8 }}>
-            <table className="trades">
-              <thead>
-                <tr>
-                  <th style={{ textAlign: 'left' }}>日期</th>
-                  <th>融資餘額</th>
-                  <th>較前日</th>
-                  <th>融券餘額</th>
-                  <th>較前日</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...margin_daily].reverse().map((row) => (
-                  <tr key={row.date}>
-                    <td style={{ textAlign: 'left' }}>{row.date}</td>
-                    <td>{num(row.margin_balance)}</td>
-                    <td className={row.margin_change > 0 ? 'up' : row.margin_change < 0 ? 'down' : undefined}>
-                      {row.margin_change != null ? signedNum(row.margin_change) : '—'}
-                    </td>
-                    <td>{num(row.short_balance)}</td>
-                    <td className={row.short_change > 0 ? 'up' : row.short_change < 0 ? 'down' : undefined}>
-                      {row.short_change != null ? signedNum(row.short_change) : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="stat-inline-row">
+            <span className="stat-inline-label">融資餘額</span>
+            <span className="stat-inline-value">{num(latestMargin.margin_balance)} 張</span>
           </div>
+          <div className="stat-inline-row">
+            <span className="stat-inline-label">融資較前日</span>
+            <span className={`stat-inline-value ${flowNum(latestMargin.margin_change).cls}`}>{flowNum(latestMargin.margin_change).text} 張</span>
+          </div>
+          <div className="stat-inline-row">
+            <span className="stat-inline-label">融券餘額</span>
+            <span className="stat-inline-value">{num(latestMargin.short_balance)} 張</span>
+          </div>
+          <div className="stat-inline-row">
+            <span className="stat-inline-label">融券較前日</span>
+            <span className={`stat-inline-value ${flowNum(latestMargin.short_change).cls}`}>{flowNum(latestMargin.short_change).text} 張</span>
+          </div>
+
+          {margin_daily.length > 1 && (
+            <details className="collapse-detail">
+              <summary>查看近{margin_daily.length}日詳細數字</summary>
+              <div className="table-wrap">
+                <table className="trades">
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'left' }}>日期</th>
+                      <th>融資餘額</th><th>較前日</th><th>融券餘額</th><th>較前日</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...margin_daily].reverse().map((row) => (
+                      <tr key={row.date}>
+                        <td style={{ textAlign: 'left' }}>{row.date}</td>
+                        <td>{num(row.margin_balance)}</td>
+                        <td className={flowNum(row.margin_change).cls}>{flowNum(row.margin_change).text}</td>
+                        <td>{num(row.short_balance)}</td>
+                        <td className={flowNum(row.short_change).cls}>{flowNum(row.short_change).text}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          )}
         </div>
       )}
 
       <div className="chart-panel">
-        <div className="chart-panel-title">8種策略目前狀態</div>
+        <div className="chart-panel-title"><span className="section-title-icon">📊</span>8種策略目前狀態</div>
         <div className="table-wrap" style={{ marginTop: 8 }}>
           <table className="trades">
             <thead>

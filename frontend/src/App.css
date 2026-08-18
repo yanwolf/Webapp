@@ -312,6 +312,61 @@ table.trades tbody tr:hover { background: var(--panel-raised); }
 .side-tag.long { color: var(--up); background: var(--up-soft); }
 .side-tag.short { color: var(--down); background: var(--down-soft); }
 
+/* ---------- Stock analysis: stat boxes ---------- */
+.section-title-icon { margin-right: 6px; }
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+.stat-box {
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.stat-box-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.stat-box-value {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-inline-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 10px 0;
+}
+.stat-inline-row + .stat-inline-row {
+  border-top: 1px solid var(--border-soft);
+}
+.stat-inline-label { font-size: 13px; color: var(--text-muted); }
+.stat-inline-value { font-family: var(--font-mono); font-size: 15px; font-weight: 600; }
+
+.flow-up { color: var(--down); }   /* 資金流入（買超/增加）用綠色，跟股價漲跌顏色刻意相反，避免混淆 */
+.flow-down { color: var(--up); }   /* 資金流出（賣超/減少）用紅色 */
+
+details.collapse-detail summary {
+  cursor: pointer;
+  color: var(--cyan);
+  font-size: 12.5px;
+  list-style: none;
+  margin-top: 14px;
+  user-select: none;
+}
+details.collapse-detail summary::-webkit-details-marker { display: none; }
+details.collapse-detail summary::after { content: ' ▾'; }
+details.collapse-detail[open] summary::after { content: ' ▴'; }
+details.collapse-detail .table-wrap { margin-top: 10px; }
+
 footer.note {
   color: var(--text-faint);
   font-size: 12px;
