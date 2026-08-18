@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ComposedChart, Area, Line, Scatter, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
@@ -97,6 +97,32 @@ export default function PriceChart({ priceSeries, trades, chartType = 'lines', o
 
   const everyNth = Math.max(1, Math.floor(chartData.length / 8));
   const remeasureKey = useRemeasureKey();
+
+  // 暫時的除錯資訊：量測外層容器實際寬度，跟視窗寬度、資料筆數一起顯示出來，
+  // 方便判斷問題到底是「量到的寬度不對」還是「量到的寬度對，但畫的內容不對」
+  const debugBoxRef = useRef(null);
+  const [debugInfo, setDebugInfo] = useState(null);
+  useEffect(() => {
+    const measure = () => {
+      const el = debugBoxRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      setDebugInfo({
+        containerWidth: Math.round(rect.width),
+        windowInnerWidth: window.innerWidth,
+        devicePixelRatio: window.devicePixelRatio,
+        dataRows: chartData.length,
+      });
+    };
+    measure();
+    const t1 = setTimeout(measure, 500);
+    const t2 = setTimeout(measure, 1500);
+    window.addEventListener('resize', measure);
+    return () => {
+      clearTimeout(t1); clearTimeout(t2);
+      window.removeEventListener('resize', measure);
+    };
+  }, [chartData.length, remeasureKey]);
   const Tooltip_ = makeTooltip(overlayKeys);
 
   return (
@@ -116,6 +142,17 @@ export default function PriceChart({ priceSeries, trades, chartType = 'lines', o
         <span className="legend-item"><span className="legend-tri" style={{ borderTop: '8px solid #29b389' }} />做空進場</span>
         <span className="legend-item"><span className="legend-tri" style={{ borderTop: '8px solid #8b8f98' }} />出場</span>
       </div>
+      {debugInfo && (
+        <div style={{
+          fontSize: 11, fontFamily: 'var(--font-mono)', color: '#f0a500',
+          background: 'rgba(240,165,0,0.08)', border: '1px solid rgba(240,165,0,0.3)',
+          borderRadius: 6, padding: '6px 10px', marginBottom: 10,
+        }}>
+          🔧 除錯資訊：容器寬度={debugInfo.containerWidth}px　視窗寬度={debugInfo.windowInnerWidth}px　
+          DPR={debugInfo.devicePixelRatio}　資料筆數={debugInfo.dataRows}
+        </div>
+      )}
+      <div ref={debugBoxRef}>
       <ResponsiveContainer key={remeasureKey} width="100%" height={380}>
         <ComposedChart data={chartData} margin={{ top: 4, right: 12, left: -8, bottom: 4 }}>
           <CartesianGrid stroke="#1d2026" vertical={false} />
@@ -158,6 +195,7 @@ export default function PriceChart({ priceSeries, trades, chartType = 'lines', o
           <Scatter data={chartData} dataKey="exit_short" shape={(p) => <Triangle {...p} up color="#8b8f98" />} isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }
