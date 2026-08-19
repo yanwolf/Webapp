@@ -25,6 +25,8 @@ const STRATEGY_META = {
   macd: { label: 'MACD 動量策略' },
   atr_channel: { label: 'ATR 通道突破' },
   fvg: { label: 'FVG 缺口回補' },
+  pivot: { label: '轉折突破' },
+  ma60_filter: { label: 'MA60季線濾網' },
   buy_hold: { label: '買進持有（基準）' },
 };
 
@@ -262,6 +264,35 @@ export default function ControlPanel({ form, setForm, onSubmit, loading }) {
           <div className="field">
             <label>停利（ATR倍數）</label>
             <input type="number" value={form.fvg_atr_target_mult} onChange={update('fvg_atr_target_mult')} min={0.5} max={20} step={0.1} />
+          </div>
+        </>
+      )}
+
+      {form.strategy === 'pivot' && (
+        <>
+          <div className="field">
+            <label>轉折確認左窗（根）</label>
+            <input type="number" value={form.pivot_left} onChange={update('pivot_left')} min={1} max={10} />
+          </div>
+          <div className="field">
+            <label>轉折確認右窗（根）</label>
+            <input type="number" value={form.pivot_right} onChange={update('pivot_right')} min={1} max={15} />
+          </div>
+        </>
+      )}
+
+      {form.strategy === 'ma60_filter' && (
+        <>
+          <div className="field">
+            <label>季線週期</label>
+            <input type="number" value={form.ma60_period} onChange={update('ma60_period')} min={5} max={300} />
+          </div>
+          <div className="field">
+            <label>濾網均線週期</label>
+            <input type="number" value={form.ma60_filter_period} onChange={update('ma60_filter_period')} min={20} max={500} />
+          </div>
+          <div className="field" style={{ display: 'flex', alignItems: 'flex-end' }}>
+            <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>此策略只做多，交易方式選項不適用</span>
           </div>
         </>
       )}

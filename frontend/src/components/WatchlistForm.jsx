@@ -17,6 +17,8 @@ const STRATEGY_META = {
   macd: 'MACD 動量策略',
   atr_channel: 'ATR 通道突破',
   fvg: 'FVG 缺口回補',
+  pivot: '轉折突破',
+  ma60_filter: 'MA60季線濾網',
 };
 
 const INTERVAL_META = {

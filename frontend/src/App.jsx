@@ -42,6 +42,8 @@ const STRATEGY_SUBTITLE = {
   macd: 'MACD/訊號線交叉 · 經典動能指標',
   atr_channel: '中軌±ATR倍數畫出通道 · 用波動度定義突破',
   fvg: '偵測三根K棒缺口 · 等待回補反轉確認進場',
+  pivot: '突破經確認的轉折高低點 · 無濾網無停損 · 靠反向訊號翻單，永遠有部位',
+  ma60_filter: '收盤站上60日均線且大方向偏多才進場 · 只做多 · 規則最單純',
   buy_hold: '第一根K棒買進、全程持有到底 · 用來檢驗策略是否真的打敗大盤',
 };
 
@@ -86,6 +88,10 @@ export default function App() {
     fvg_max_wait: 20,
     fvg_atr_stop_mult: 1.5,
     fvg_atr_target_mult: 3.0,
+    pivot_left: 2,
+    pivot_right: 5,
+    ma60_period: 60,
+    ma60_filter_period: 200,
   });
 
   const [loading, setLoading] = useState(false);
@@ -101,6 +107,7 @@ export default function App() {
     'stop_pct', 'atr_period', 'atr_mult',
     'atr_ch_period', 'atr_ch_ma_window', 'atr_ch_mult',
     'fvg_atr_period', 'fvg_max_wait', 'fvg_atr_stop_mult', 'fvg_atr_target_mult',
+    'pivot_left', 'pivot_right', 'ma60_period', 'ma60_filter_period',
   ];
 
   const runBacktest = async () => {

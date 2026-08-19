@@ -15,6 +15,8 @@ const OVERLAY_COLORS = {
   ma_fast: '#ec5f5f', ma_slow: '#6ee7df',
   donch_upper_entry: '#6ee7df', donch_lower_entry: '#6ee7df',
   atr_mid: '#d4b06a', atr_upper: '#6ee7df', atr_lower: '#6ee7df',
+  pivot_high: '#6ee7df', pivot_low: '#6ee7df',
+  ma60: '#ec5f5f', ma200: '#6ee7df',
 };
 const OVERLAY_LABELS = {
   mid: '中軌', upper: '上軌', lower: '下軌',
@@ -22,6 +24,8 @@ const OVERLAY_LABELS = {
   ma_fast: '快線', ma_slow: '慢線',
   donch_upper_entry: '通道上緣', donch_lower_entry: '通道下緣',
   atr_mid: '中軌', atr_upper: '通道上緣', atr_lower: '通道下緣',
+  pivot_high: '轉折高點', pivot_low: '轉折低點',
+  ma60: '季線', ma200: '濾網均線',
 };
 
 function Triangle({ cx, cy, up, color }) {

@@ -13,6 +13,8 @@ from rsi_strategy import compute_rsi_signals
 from macd_strategy import compute_macd_signals
 from atr_strategy import compute_atr_channel_signals
 from fvg_strategy import detect_fvg_signals
+from pivot_strategy import compute_pivot_signals
+from ma60_filter_strategy import compute_ma60_filter_signals
 
 STRATEGY_LABELS = {
     "bollinger": "布林通道策略",
@@ -23,6 +25,8 @@ STRATEGY_LABELS = {
     "macd": "MACD 動量策略",
     "atr_channel": "ATR 通道突破",
     "fvg": "FVG 缺口回補",
+    "pivot": "轉折突破",
+    "ma60_filter": "MA60季線濾網",
     "buy_hold": "買進持有（基準）",
 }
 
@@ -40,6 +44,8 @@ DEFAULT_PARAMS = {
                  stop_type="pct", stop_pct=0.08, atr_period=14, atr_mult=2.0),
     "atr_channel": dict(atr_ch_period=14, atr_ch_ma_window=20, atr_ch_mult=2.0),
     "fvg": dict(fvg_atr_period=14, fvg_max_wait=20, fvg_atr_stop_mult=1.5, fvg_atr_target_mult=3.0),
+    "pivot": dict(pivot_left=2, pivot_right=5),
+    "ma60_filter": dict(ma60_period=60, ma60_filter_period=200),
     "buy_hold": dict(),
 }
 
@@ -54,6 +60,10 @@ def min_bars_for_strategy(strategy: str, params: dict, base_min: int = 60) -> in
         return max(base_min, int(p.get("macd_slow", 26) * 1.5))
     if strategy == "atr_channel":
         return max(base_min, int(p.get("atr_ch_ma_window", 20) * 1.5))
+    if strategy == "ma60_filter":
+        return max(base_min, int(p.get("ma60_filter_period", 200) * 1.2))
+    if strategy == "pivot":
+        return max(base_min, p.get("pivot_left", 2) + p.get("pivot_right", 5) + 20)
     return base_min
 
 
@@ -130,6 +140,18 @@ def run_strategy(df, strategy: str, params: dict, allow_short: bool = True,
         overlay_keys = []
         chart_type = "lines"
 
+    elif strategy == "pivot":
+        sig_df = compute_pivot_signals(df, left=p["pivot_left"], right=p["pivot_right"])
+        res = run_generic_backtest(sig_df, allow_short=allow_short, init_capital=capital)
+        overlay_keys = ["pivot_high", "pivot_low"]
+        chart_type = "lines"
+
+    elif strategy == "ma60_filter":
+        sig_df = compute_ma60_filter_signals(df, ma_period=p["ma60_period"], filter_period=p["ma60_filter_period"])
+        res = run_generic_backtest(sig_df, allow_short=False, init_capital=capital)
+        overlay_keys = ["ma60", "ma200"]
+        chart_type = "lines"
+
     else:  # bollinger
         squeeze_lookback = max(20, int(126 * bars_per_day))
         sig_df = compute_indicators(df, bb_window=p["bb_window"], bb_std=p["bb_std"], squeeze_lookback=squeeze_lookback)
@@ -143,7 +165,8 @@ def run_strategy(df, strategy: str, params: dict, allow_short: bool = True,
                 oscillator_keys=oscillator_keys, chart_type=chart_type)
 
 
-ALL_SIGNAL_STRATEGIES = ["bollinger", "ma3", "ma_cross", "donchian", "rsi", "macd", "atr_channel", "fvg"]
+ALL_SIGNAL_STRATEGIES = ["bollinger", "ma3", "ma_cross", "donchian", "rsi", "macd",
+                          "atr_channel", "fvg", "pivot", "ma60_filter"]
 
 STYLE_PRESETS = {
     "short": dict(label="短沖", interval="1h", strategies=ALL_SIGNAL_STRATEGIES),
@@ -199,6 +222,17 @@ def _grid_fvg():
             yield dict(fvg_max_wait=wait, fvg_atr_stop_mult=stop_mult, fvg_atr_target_mult=target_mult)
 
 
+def _grid_pivot():
+    for left, right in itertools.product([1, 2, 3], [3, 5, 8]):
+        yield dict(pivot_left=left, pivot_right=right)
+
+
+def _grid_ma60_filter():
+    for ma_period, filter_period in itertools.product([40, 60, 80], [150, 200, 250]):
+        if ma_period < filter_period:
+            yield dict(ma60_period=ma_period, ma60_filter_period=filter_period)
+
+
 OPTIMIZE_GRIDS = {
     "bollinger": _grid_bollinger,
     "ma3": _grid_ma3,
@@ -208,6 +242,8 @@ OPTIMIZE_GRIDS = {
     "macd": _grid_macd,
     "atr_channel": _grid_atr_channel,
     "fvg": _grid_fvg,
+    "pivot": _grid_pivot,
+    "ma60_filter": _grid_ma60_filter,
 }
 
 # 每個參數的中文標籤，給前端表格用
@@ -220,6 +256,8 @@ PARAM_LABELS = {
     "macd_fast": "快線EMA", "macd_slow": "慢線EMA", "macd_signal": "訊號線EMA",
     "atr_ch_period": "ATR週期", "atr_ch_ma_window": "中軌週期", "atr_ch_mult": "通道倍數",
     "fvg_max_wait": "等待K棒數", "fvg_atr_stop_mult": "停損倍數", "fvg_atr_target_mult": "停利倍數",
+    "pivot_left": "轉折左窗", "pivot_right": "轉折右窗",
+    "ma60_period": "季線週期", "ma60_filter_period": "濾網均線週期",
 }
 
 

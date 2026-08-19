@@ -147,7 +147,7 @@ class BacktestRequest(BaseModel):
     market: Literal["us", "tw", "crypto"] = Field(..., description="市場別")
     ticker: str
     strategy: Literal["bollinger", "ma3", "ma_cross", "donchian", "rsi", "macd",
-                       "atr_channel", "fvg", "buy_hold"] = Field("bollinger")
+                       "atr_channel", "fvg", "pivot", "ma60_filter", "buy_hold"] = Field("bollinger")
     interval: Literal["1d", "4h", "1h", "15m", "5m", "1m"] = Field("1d")
     start: str = Field("2015-01-01")
     end: Optional[str] = Field(None)
@@ -190,6 +190,14 @@ class BacktestRequest(BaseModel):
     fvg_atr_stop_mult: float = Field(1.5, ge=0.5, le=10.0)
     fvg_atr_target_mult: float = Field(3.0, ge=0.5, le=20.0)
 
+    # 轉折突破策略
+    pivot_left: int = Field(2, ge=1, le=10)
+    pivot_right: int = Field(5, ge=1, le=15)
+
+    # MA60季線濾網策略
+    ma60_period: int = Field(60, ge=5, le=300)
+    ma60_filter_period: int = Field(200, ge=20, le=500)
+
 
 def _req_to_params(req: BacktestRequest) -> Dict[str, Any]:
     return dict(
@@ -203,6 +211,8 @@ def _req_to_params(req: BacktestRequest) -> Dict[str, Any]:
         atr_ch_period=req.atr_ch_period, atr_ch_ma_window=req.atr_ch_ma_window, atr_ch_mult=req.atr_ch_mult,
         fvg_atr_period=req.fvg_atr_period, fvg_max_wait=req.fvg_max_wait,
         fvg_atr_stop_mult=req.fvg_atr_stop_mult, fvg_atr_target_mult=req.fvg_atr_target_mult,
+        pivot_left=req.pivot_left, pivot_right=req.pivot_right,
+        ma60_period=req.ma60_period, ma60_filter_period=req.ma60_filter_period,
     )
 
 
@@ -420,7 +430,7 @@ def compare_strategies(req: CompareRequest, user=Depends(auth.get_current_user))
 class OptimizeRequest(BaseModel):
     market: Literal["us", "tw", "crypto"]
     ticker: str
-    strategy: Literal["bollinger", "ma3", "ma_cross", "donchian", "rsi", "macd", "atr_channel", "fvg"]
+    strategy: Literal["bollinger", "ma3", "ma_cross", "donchian", "rsi", "macd", "atr_channel", "fvg", "pivot", "ma60_filter"]
     interval: Literal["1d", "4h", "1h", "15m", "5m", "1m"] = Field("1d")
     start: str = Field("2015-01-01")
     end: Optional[str] = Field(None)
@@ -587,7 +597,7 @@ async def telegram_webhook(webhook_secret: str, request: Request):
 class WatchlistCreate(BaseModel):
     market: Literal["us", "tw", "crypto"]
     ticker: str
-    strategy: Literal["bollinger", "ma3", "ma_cross", "donchian", "rsi", "macd", "atr_channel", "fvg"]
+    strategy: Literal["bollinger", "ma3", "ma_cross", "donchian", "rsi", "macd", "atr_channel", "fvg", "pivot", "ma60_filter"]
     interval: Literal["1d", "4h", "1h", "15m", "5m", "1m"] = "1d"
     allow_short: bool = True
     params: Dict[str, Any] = Field(default_factory=dict)
