@@ -32,7 +32,7 @@ from pydantic import BaseModel, Field
 import db
 import auth
 import telegram_client
-from market_data import fetch_ohlcv, sanitize, INTERVAL_META
+from market_data import fetch_ohlcv, sanitize, INTERVAL_META, drop_forming_bar
 from strategy_runner import (
     run_strategy, STRATEGY_LABELS, DEFAULT_PARAMS, min_bars_for_strategy,
     ALL_SIGNAL_STRATEGIES, STYLE_PRESETS, OPTIMIZE_GRIDS, PARAM_LABELS,
@@ -43,7 +43,7 @@ from stock_analysis import (
     fetch_margin_daily, compute_volume_volatility, build_summary_text,
 )
 from futures_watch import FUTURES_PRESETS, get_ma3_snapshot
-from scheduler import start_scheduler
+from scheduler import start_scheduler, _start_date_for
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
@@ -598,6 +598,38 @@ def get_watchlist(user=Depends(auth.get_current_user)):
     items = db.list_watchlist(user_id=user["id"])
     for it in items:
         it["strategy_label"] = STRATEGY_LABELS.get(it["strategy"], it["strategy"])
+        it["open_position"] = None
+
+        # 背景排程的「最新訊號」欄位只在「剛好在事件發生那個時間點檢查」才會記到，
+        # 如果部位已經進場一段時間、還沒出場，排程可能永遠沒抓到那個瞬間，畫面上就會一直空白。
+        # 這裡改成每次打開追蹤清單都即時重算一次目前真實持倉狀態，不依賴排程留下的離散紀錄。
+        if not it.get("enabled", True):
+            continue
+        try:
+            start = _start_date_for(it["interval"])
+            df, resolved, notes, err, source = fetch_ohlcv(it["market"], it["ticker"], it["interval"], start)
+            if err or df is None:
+                continue
+            df = drop_forming_bar(df, it["interval"])
+            if len(df) < min_bars_for_strategy(it["strategy"], it["params"]):
+                continue
+            bars_per_day = INTERVAL_META[it["interval"]]["bars_per_day"]
+            out = run_strategy(df, it["strategy"], it["params"], allow_short=it["allow_short"],
+                                capital=1_000_000.0, bars_per_day=bars_per_day)
+            op = out["res"].get("open_position")
+            if op:
+                cur_price = float(df["Close"].iloc[-1])
+                unrealized = (cur_price / op["entry_price"] - 1) if op["side"] == "long" else (op["entry_price"] / cur_price - 1)
+                it["open_position"] = {
+                    "side": op["side"],
+                    "entry_date": op["entry_date"].strftime("%Y-%m-%d %H:%M"),
+                    "entry_price": sanitize(op["entry_price"]),
+                    "current_price": sanitize(cur_price),
+                    "unrealized_return": sanitize(unrealized),
+                }
+        except Exception:
+            continue
+
     return {"items": items}
 
 
