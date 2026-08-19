@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from './api';
 import './App.css';
+import NavDrawer from './NavDrawer';
 import ControlPanel from './components/ControlPanel';
 import MetricsGrid from './components/MetricsGrid';
 import PriceChart from './components/PriceChart';
@@ -47,6 +48,7 @@ export default function App() {
   const [username, setUsername] = useState(() => localStorage.getItem('username'));
   const [me, setMe] = useState(null);
   const [tab, setTab] = useState('home');
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const { start, end } = defaultDates();
   const [form, setForm] = useState({
     strategy: 'bollinger',
@@ -143,43 +145,21 @@ export default function App() {
   return (
     <div className="app-shell">
       <div className="hero" style={{ justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div className="hero-mark">
-            <svg viewBox="0 0 34 34" fill="none">
-              <circle cx="17" cy="17" r="14" stroke="#d4b06a" strokeWidth="1.2" fill="rgba(212,176,106,0.06)" />
-              <circle cx="17" cy="17" r="10.2" stroke="#6ee7df" strokeWidth="0.5" opacity="0.45" />
-              <polygon points="17,6.5 20.3,17 17,17" fill="#d4b06a" />
-              <polygon points="17,6.5 13.7,17 17,17" fill="#e8cd94" opacity="0.85" />
-              <polygon points="17,27.5 20.3,17 17,17" fill="#6ee7df" opacity="0.65" />
-              <polygon points="17,27.5 13.7,17 17,17" fill="#6ee7df" opacity="0.35" />
-              <circle cx="17" cy="17" r="1.7" fill="#08090b" stroke="#d4b06a" strokeWidth="0.8" />
-            </svg>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <button className="hamburger-btn" onClick={() => setDrawerOpen(true)} aria-label="開啟選單">☰</button>
           <h1>策略實驗室</h1>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ color: 'var(--text-faint)', fontSize: 13 }}>{username}</span>
-          <button
-            onClick={logout}
-            style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 7, padding: '6px 12px', fontSize: 12.5, cursor: 'pointer' }}
-          >
-            登出
-          </button>
         </div>
       </div>
 
-      <div className="tab-row">
-        <button className={`tab-btn ${tab === 'home' ? 'active' : ''}`} onClick={() => setTab('home')}>首頁</button>
-        <button className={`tab-btn ${tab === 'backtest' ? 'active' : ''}`} onClick={() => setTab('backtest')}>回測</button>
-        <button className={`tab-btn ${tab === 'compare' ? 'active' : ''}`} onClick={() => setTab('compare')}>策略比較</button>
-        <button className={`tab-btn ${tab === 'optimize' ? 'active' : ''}`} onClick={() => setTab('optimize')}>參數最佳化</button>
-        <button className={`tab-btn ${tab === 'stockcheck' ? 'active' : ''}`} onClick={() => setTab('stockcheck')}>個股分析</button>
-        <button className={`tab-btn ${tab === 'futures' ? 'active' : ''}`} onClick={() => setTab('futures')}>美股期貨</button>
-        <button className={`tab-btn ${tab === 'watchlist' ? 'active' : ''}`} onClick={() => setTab('watchlist')}>追蹤清單</button>
-        {me?.is_admin && (
-          <button className={`tab-btn ${tab === 'admin' ? 'active' : ''}`} onClick={() => setTab('admin')}>管理員</button>
-        )}
-      </div>
+      <NavDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        tab={tab}
+        setTab={setTab}
+        isAdmin={!!me?.is_admin}
+        username={username}
+        onLogout={logout}
+      />
 
       <div style={{ display: tab === 'home' ? 'block' : 'none' }}>
         <HomePage onNavigate={setTab} />
