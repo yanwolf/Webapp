@@ -254,10 +254,55 @@ def _fetch_yfinance(market: str, ticker: str, interval: str, start: str, end: st
 
 
 # ---------------------------------------------------------------- 統一入口
+def refresh_stale_last_bar(df: pd.DataFrame, market: str, ticker: str, interval: str) -> pd.DataFrame:
+    """
+    非日K的資料，最後一根常常因為資料源延遲而卡在比較舊的時間點（例如缺口貨尾盤沒抓到、
+    盤中資料更新有時間差），導致最新價格是錯的。額外抓一份同一標的的日K，
+    拿正確的「今天最新收盤」跟現有資料的最後一根比對：
+      - 非日K最後一天已經比日K舊 → 額外補一根代表最新收盤的K棒
+      - 同一天但收盤價對不上 → 直接把最後一根的收盤價改成正確值
+    任何一步失敗都直接回傳原本的資料，不影響原本的行為。
+    """
+    if df is None or len(df) == 0 or interval == "1d":
+        return df
+    try:
+        check_start = (df.index[-1] - timedelta(days=10)).strftime("%Y-%m-%d")
+        daily_df, _, _, err, _ = fetch_ohlcv(market, ticker, "1d", check_start)
+        if err or daily_df is None or len(daily_df) == 0:
+            return df
+
+        last_bar_date = df.index[-1].date()
+        last_daily_date = daily_df.index[-1].date()
+        true_close = float(daily_df["Close"].iloc[-1])
+
+        if last_bar_date < last_daily_date:
+            new_ts = pd.Timestamp(last_daily_date) + pd.Timedelta(hours=23, minutes=55)
+            new_row = pd.DataFrame(
+                {"Open": [true_close], "High": [true_close], "Low": [true_close],
+                 "Close": [true_close], "Volume": [0]},
+                index=[new_ts],
+            )
+            df = pd.concat([df, new_row])
+        elif last_bar_date == last_daily_date:
+            last_close = float(df["Close"].iloc[-1])
+            if abs(true_close - last_close) > 0.01:
+                close_col = df.columns.get_loc("Close")
+                high_col = df.columns.get_loc("High")
+                low_col = df.columns.get_loc("Low")
+                df.iloc[-1, close_col] = true_close
+                df.iloc[-1, high_col] = max(df.iloc[-1, high_col], true_close)
+                df.iloc[-1, low_col] = min(df.iloc[-1, low_col], true_close)
+    except Exception:
+        return df
+    return df
+
+
 def fetch_ohlcv(market: str, ticker: str, interval: str, start: str, end: Optional[str] = None):
     """
     回傳 (df, resolved_ticker, notes, error_detail, source)
     依優先順序嘗試新資料源，失敗則自動退回 yfinance。
+    非日K的資料在回傳前，會自動跟日K比對、修正可能過舊的最後一根K棒
+    （refresh_stale_last_bar 內部只在 interval != "1d" 時動作，不會自己呼叫自己造成無限遞迴）。
     """
     resolved = resolve_ticker(market, ticker)
     end = end or datetime.today().strftime("%Y-%m-%d")
@@ -281,12 +326,17 @@ def fetch_ohlcv(market: str, ticker: str, interval: str, start: str, end: Option
         if df is not None:
             source = "binance"
 
-    if df is not None:
-        return df, resolved, [], None, source
+    if df is None:
+        # 全部新資料源都沒有回傳（未設定Key、暫時性錯誤、代碼查不到等），退回 yfinance
+        df, resolved, notes, err = _fetch_yfinance(market, ticker, interval, start, end)
+        source = "yfinance" if df is not None else None
+    else:
+        notes, err = [], None
 
-    # 全部新資料源都沒有回傳（未設定Key、暫時性錯誤、代碼查不到等），退回 yfinance
-    df, resolved, notes, err = _fetch_yfinance(market, ticker, interval, start, end)
-    return df, resolved, notes, err, ("yfinance" if df is not None else None)
+    if df is not None:
+        df = refresh_stale_last_bar(df, market, ticker, interval)
+
+    return df, resolved, notes, err, source
 
 
 def drop_forming_bar(df: pd.DataFrame, interval: str) -> pd.DataFrame:

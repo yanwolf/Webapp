@@ -640,41 +640,12 @@ def analyze_stock(req: StockAnalysisRequest, user=Depends(auth.get_current_user)
 
     # 均線三刀流的原始設計是用在1小時K（20/60/240根1H K棒）上，跟其他策略用的日K是完全不同的時間跨度，
     # 額外抓一份1小時K專門給它用；抓不到就優雅退回日K，並在結果裡註明
+    # （末端K棒過舊的問題現在統一在 market_data.fetch_ohlcv 裡處理，這裡不用再另外補正）
     ma3_start = (_dt.now() - _td(days=700)).strftime("%Y-%m-%d")  # yfinance 對1小時K約只提供近2年資料
     df_1h, _, _, err_1h, _ = fetch_ohlcv("tw", req.ticker, "1h", ma3_start)
     if err_1h or df_1h is None or len(df_1h) < 300:
         df_ma3, ma3_interval_label = None, "日K（1小時K資料不足，改用日K計算）"
     else:
-        # yfinance 的1小時K在台股尾盤常常少算最後 13:00~13:30 這半小時，
-        # 導致「最新一根1小時K」的收盤價停在13:00、不是真正的當日收盤價。
-        # 已經有日K的正確今日收盤價，兩者若對不上就用日K的價格修正回去，
-        # 確保均線三刀流看到的是真正的當日收盤，不是被截斷的尾盤價格。
-        # yfinance 的1小時K在台股尾盤(13:00~13:30)常常沒抓到，甚至有時候整批資料會慢一整天，
-        # 導致「最新一根1小時K」的收盤價停在昨天或前一根，不是真正的當日收盤價。
-        # 已經有日K的正確今日收盤價，用它來補正：
-        #   - 1小時K的最後日期已經比日K舊 → 額外補一根代表當日收盤的K棒
-        #   - 兩邊同一天但收盤價對不上 → 直接把最後一根的收盤價改成正確值
-        last_1h_date = df_1h.index[-1].date()
-        last_daily_date = df.index[-1].date()
-        true_close = float(df["Close"].iloc[-1])
-
-        if last_1h_date < last_daily_date:
-            new_ts = pd.Timestamp(last_daily_date) + pd.Timedelta(hours=13, minutes=30)
-            new_row = pd.DataFrame(
-                {"Open": [true_close], "High": [true_close], "Low": [true_close],
-                 "Close": [true_close], "Volume": [0]},
-                index=[new_ts],
-            )
-            df_1h = pd.concat([df_1h, new_row])
-        elif last_1h_date == last_daily_date:
-            last_1h_close = float(df_1h["Close"].iloc[-1])
-            if abs(true_close - last_1h_close) > 0.01:
-                close_col = df_1h.columns.get_loc("Close")
-                high_col = df_1h.columns.get_loc("High")
-                low_col = df_1h.columns.get_loc("Low")
-                df_1h.iloc[-1, close_col] = true_close
-                df_1h.iloc[-1, high_col] = max(df_1h.iloc[-1, high_col], true_close)
-                df_1h.iloc[-1, low_col] = min(df_1h.iloc[-1, low_col], true_close)
         df_ma3, ma3_interval_label = df_1h, "1H"
 
     signals, tally = analyze_signals(df, df_ma3=df_ma3, ma3_interval_label=ma3_interval_label)
