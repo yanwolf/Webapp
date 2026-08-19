@@ -292,6 +292,22 @@ def backtest(req: BacktestRequest, user=Depends(auth.get_current_user)):
                 "pnl": sanitize(r["pnl"]), "ret": sanitize(r["ret"]),
             })
 
+    open_position = None
+    op = res.get("open_position")
+    if op:
+        cur_price = float(sig_df["Close"].iloc[-1])
+        if op["side"] == "long":
+            unrealized = cur_price / op["entry_price"] - 1
+        else:
+            unrealized = op["entry_price"] / cur_price - 1
+        open_position = {
+            "side": op["side"],
+            "entry_date": fmt_ts(op["entry_date"]),
+            "entry_price": sanitize(op["entry_price"]),
+            "current_price": sanitize(cur_price),
+            "unrealized_return": sanitize(unrealized),
+        }
+
     return {
         "ticker_resolved": resolved,
         "data_source": source,
@@ -308,6 +324,7 @@ def backtest(req: BacktestRequest, user=Depends(auth.get_current_user)):
         "price_series": price_series,
         "equity_series": equity_series,
         "trades": trades,
+        "open_position": open_position,
     }
 
 

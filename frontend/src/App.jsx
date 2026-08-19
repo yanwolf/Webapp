@@ -4,6 +4,7 @@ import './App.css';
 import NavDrawer from './NavDrawer';
 import ControlPanel from './components/ControlPanel';
 import MetricsGrid from './components/MetricsGrid';
+import OpenPositionBanner from './components/OpenPositionBanner';
 import PriceChart from './components/PriceChart';
 import { RsiChart, MacdChart } from './components/OscillatorChart';
 import EquityChart from './components/EquityChart';
@@ -216,6 +217,7 @@ export default function App() {
             資料來源：{DATA_SOURCE_LABELS[result.data_source] || result.data_source || '未知'}
           </div>
           <MetricsGrid metrics={result.metrics} />
+          <OpenPositionBanner position={result.open_position} />
 
           <PriceChart
             priceSeries={result.price_series}
