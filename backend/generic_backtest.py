@@ -12,6 +12,9 @@
 
 停利（可選，通常搭配 ATR 停損一起用，形成固定風報比）：
   atr_target_mult 進場時的 ATR × 倍數 當停利距離
+
+同一根K棒若「先出場、又立刻符合反向進場條件」（例如排列直接從多頭翻空頭，
+沒有經過中間的糾結狀態），會在同一根K棒完成「出場+反手進場」，不會漏記。
 """
 import math
 import pandas as pd
@@ -44,62 +47,57 @@ def run_generic_backtest(df: pd.DataFrame, allow_short: bool = True,
             return None
         return v
 
+    def _open_long(row, date, price):
+        nonlocal position, entry_price, entry_date, stop_price, target_price, shares, cash
+        position = 1
+        entry_price = price
+        entry_date = date
+        atr_val = _atr_at(row)
+        if stop_col_long:
+            stop_price = row.get(stop_col_long)
+        elif atr_stop_mult and atr_val is not None:
+            stop_price = entry_price - atr_stop_mult * atr_val
+        elif stop_pct:
+            stop_price = entry_price * (1 - stop_pct)
+        else:
+            stop_price = None
+        target_price = entry_price + atr_target_mult * atr_val if (atr_target_mult and atr_val is not None) else None
+        shares = (cash * (1 - fee_bps / 10000)) / price
+        cash = 0.0
+
+    def _open_short(row, date, price):
+        nonlocal position, entry_price, entry_date, stop_price, target_price, shares, cash
+        position = -1
+        entry_price = price
+        entry_date = date
+        atr_val = _atr_at(row)
+        if stop_col_short:
+            stop_price = row.get(stop_col_short)
+        elif atr_stop_mult and atr_val is not None:
+            stop_price = entry_price + atr_stop_mult * atr_val
+        elif stop_pct:
+            stop_price = entry_price * (1 + stop_pct)
+        else:
+            stop_price = None
+        target_price = entry_price - atr_target_mult * atr_val if (atr_target_mult and atr_val is not None) else None
+        shares = (cash * (1 - fee_bps / 10000)) / price
+        cash = 0.0
+
     idx = df.index
     for i in range(1, len(df)):
         row = df.iloc[i]
         date = idx[i]
         price = row["Close"]
 
-        if position == 0:
-            if row.get("entry_long", False):
-                position = 1
-                entry_price = price
-                entry_date = date
-                atr_val = _atr_at(row)
-
-                if stop_col_long:
-                    stop_price = row.get(stop_col_long)
-                elif atr_stop_mult and atr_val is not None:
-                    stop_price = entry_price - atr_stop_mult * atr_val
-                elif stop_pct:
-                    stop_price = entry_price * (1 - stop_pct)
-                else:
-                    stop_price = None
-
-                target_price = entry_price + atr_target_mult * atr_val if (atr_target_mult and atr_val is not None) else None
-                shares = (cash * (1 - fee_bps / 10000)) / price
-                cash = 0.0
-            elif allow_short and row.get("entry_short", False):
-                position = -1
-                entry_price = price
-                entry_date = date
-                atr_val = _atr_at(row)
-
-                if stop_col_short:
-                    stop_price = row.get(stop_col_short)
-                elif atr_stop_mult and atr_val is not None:
-                    stop_price = entry_price + atr_stop_mult * atr_val
-                elif stop_pct:
-                    stop_price = entry_price * (1 + stop_pct)
-                else:
-                    stop_price = None
-
-                target_price = entry_price - atr_target_mult * atr_val if (atr_target_mult and atr_val is not None) else None
-                shares = (cash * (1 - fee_bps / 10000)) / price
-                cash = 0.0
-
-        elif position == 1:
+        if position == 1:
             exit_now = False
             exit_price = price
             if stop_price is not None and row["Low"] <= stop_price:
-                exit_now = True
-                exit_price = stop_price
+                exit_now, exit_price = True, stop_price
             elif target_price is not None and row["High"] >= target_price:
-                exit_now = True
-                exit_price = target_price
+                exit_now, exit_price = True, target_price
             elif row.get("exit_long", False):
-                exit_now = True
-                exit_price = price
+                exit_now, exit_price = True, price
 
             if exit_now:
                 proceeds = shares * exit_price * (1 - fee_bps / 10000)
@@ -117,14 +115,11 @@ def run_generic_backtest(df: pd.DataFrame, allow_short: bool = True,
             exit_now = False
             exit_price = price
             if stop_price is not None and row["High"] >= stop_price:
-                exit_now = True
-                exit_price = stop_price
+                exit_now, exit_price = True, stop_price
             elif target_price is not None and row["Low"] <= target_price:
-                exit_now = True
-                exit_price = target_price
+                exit_now, exit_price = True, target_price
             elif row.get("exit_short", False):
-                exit_now = True
-                exit_price = price
+                exit_now, exit_price = True, price
 
             if exit_now:
                 proceeds = shares * (2 * entry_price - exit_price) * (1 - fee_bps / 10000)
@@ -137,6 +132,13 @@ def run_generic_backtest(df: pd.DataFrame, allow_short: bool = True,
                 position = 0
                 stop_price = None
                 target_price = None
+
+        # 不用 elif：出場後如果同一根K棒又符合反向進場條件，立刻反手進場，不漏記
+        if position == 0:
+            if row.get("entry_long", False):
+                _open_long(row, date, price)
+            elif allow_short and row.get("entry_short", False):
+                _open_short(row, date, price)
 
         if position == 1:
             mtm = shares * price
