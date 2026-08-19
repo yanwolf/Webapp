@@ -37,11 +37,15 @@ DEFAULT_PARAMS = {
     "ma3": dict(ma_fast=20, ma_mid=60, ma_slow=240, ma_type="sma"),
     "ma_cross": dict(cross_fast=20, cross_slow=60, cross_ma_type="sma",
                       stop_type="pct", stop_pct=0.08, atr_period=14, atr_mult=2.0),
-    "donchian": dict(donch_entry_window=20, donch_exit_window=10),
+    "donchian": dict(donch_entry_window=20, donch_exit_window=10,
+                      donch_use_filter=False, donch_adx_period=14, donch_adx_threshold=20,
+                      donch_vol_period=20, donch_vol_mult=1.1,
+                      donch_atr_period=14, donch_atr_stop_mult=2.5, donch_atr_target_mult=8.0),
     "rsi": dict(rsi_period=14, rsi_oversold=30, rsi_overbought=70,
                 stop_type="pct", stop_pct=0.06, atr_period=14, atr_mult=2.0),
     "macd": dict(macd_fast=12, macd_slow=26, macd_signal=9,
-                 stop_type="pct", stop_pct=0.08, atr_period=14, atr_mult=2.0),
+                 stop_type="pct", stop_pct=0.08, atr_period=14, atr_mult=2.0,
+                 macd_use_filter=False, macd_filter_ma_period=200),
     "atr_channel": dict(atr_ch_period=14, atr_ch_ma_window=20, atr_ch_mult=2.0),
     "fvg": dict(fvg_atr_period=14, fvg_max_wait=20, fvg_atr_stop_mult=1.5, fvg_atr_target_mult=3.0),
     "pivot": dict(pivot_left=2, pivot_right=5),
@@ -107,8 +111,19 @@ def run_strategy(df, strategy: str, params: dict, allow_short: bool = True,
         chart_type = "lines"
 
     elif strategy == "donchian":
-        sig_df = compute_donchian_signals(df, entry_window=p["donch_entry_window"], exit_window=p["donch_exit_window"])
-        res = run_generic_backtest(sig_df, allow_short=allow_short, init_capital=capital)
+        use_filter = p.get("donch_use_filter", False)
+        sig_df = compute_donchian_signals(
+            df, entry_window=p["donch_entry_window"], exit_window=p["donch_exit_window"],
+            use_filter=use_filter, adx_period=p.get("donch_adx_period", 14),
+            adx_threshold=p.get("donch_adx_threshold", 20), vol_period=p.get("donch_vol_period", 20),
+            vol_mult=p.get("donch_vol_mult", 1.1), atr_period=p.get("donch_atr_period", 14),
+        )
+        if use_filter:
+            res = run_generic_backtest(sig_df, allow_short=allow_short, init_capital=capital,
+                                        atr_stop_mult=p.get("donch_atr_stop_mult", 2.5),
+                                        atr_target_mult=p.get("donch_atr_target_mult", 8.0))
+        else:
+            res = run_generic_backtest(sig_df, allow_short=allow_short, init_capital=capital)
         overlay_keys = ["donch_upper_entry", "donch_lower_entry"]
         chart_type = "band"
 
@@ -121,8 +136,11 @@ def run_strategy(df, strategy: str, params: dict, allow_short: bool = True,
 
     elif strategy == "macd":
         sig_df = compute_macd_signals(df, fast=p["macd_fast"], slow=p["macd_slow"], signal=p["macd_signal"],
-                                       atr_period=p.get("atr_period", 14))
-        res = run_generic_backtest(sig_df, allow_short=allow_short, init_capital=capital, **_stop_kwargs(p))
+                                       atr_period=p.get("atr_period", 14),
+                                       use_filter=p.get("macd_use_filter", False),
+                                       filter_ma_period=p.get("macd_filter_ma_period", 200))
+        macd_allow_short = False if p.get("macd_use_filter", False) else allow_short
+        res = run_generic_backtest(sig_df, allow_short=macd_allow_short, init_capital=capital, **_stop_kwargs(p))
         oscillator_keys = ["macd", "macd_signal", "macd_hist"]
         chart_type = "oscillator_macd"
 
@@ -258,6 +276,9 @@ PARAM_LABELS = {
     "fvg_max_wait": "等待K棒數", "fvg_atr_stop_mult": "停損倍數", "fvg_atr_target_mult": "停利倍數",
     "pivot_left": "轉折左窗", "pivot_right": "轉折右窗",
     "ma60_period": "季線週期", "ma60_filter_period": "濾網均線週期",
+    "donch_use_filter": "唐奇安濾網", "donch_adx_threshold": "ADX門檻",
+    "donch_vol_mult": "量能倍數", "donch_atr_stop_mult": "唐奇安停損倍數", "donch_atr_target_mult": "唐奇安停利倍數",
+    "macd_use_filter": "MACD濾網", "macd_filter_ma_period": "MACD濾網均線週期",
 }
 
 

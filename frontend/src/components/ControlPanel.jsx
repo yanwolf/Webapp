@@ -161,6 +161,48 @@ export default function ControlPanel({ form, setForm, onSubmit, loading }) {
             <label>出場窗口(天)</label>
             <input type="number" value={form.donch_exit_window} onChange={update('donch_exit_window')} min={3} max={200} />
           </div>
+          <div className="field">
+            <label>版本</label>
+            <select
+              value={form.donch_use_filter ? 'filtered' : 'original'}
+              onChange={(e) => setForm((prev) => ({ ...prev, donch_use_filter: e.target.value === 'filtered' }))}
+            >
+              <option value="original">原版（無濾網無停損）</option>
+              <option value="filtered">加濾網版（ADX+量能+ATR停損停利）</option>
+            </select>
+          </div>
+          {form.donch_use_filter && (
+            <>
+              <div className="field">
+                <label>ADX 週期</label>
+                <input type="number" value={form.donch_adx_period} onChange={update('donch_adx_period')} min={2} max={100} />
+              </div>
+              <div className="field">
+                <label>ADX 門檻</label>
+                <input type="number" value={form.donch_adx_threshold} onChange={update('donch_adx_threshold')} min={0} max={60} />
+              </div>
+              <div className="field">
+                <label>量能均量週期</label>
+                <input type="number" value={form.donch_vol_period} onChange={update('donch_vol_period')} min={2} max={200} />
+              </div>
+              <div className="field">
+                <label>量能倍數門檻</label>
+                <input type="number" value={form.donch_vol_mult} onChange={update('donch_vol_mult')} min={0.5} max={5} step={0.1} />
+              </div>
+              <div className="field">
+                <label>ATR 週期</label>
+                <input type="number" value={form.donch_atr_period} onChange={update('donch_atr_period')} min={2} max={100} />
+              </div>
+              <div className="field">
+                <label>停損（ATR倍數）</label>
+                <input type="number" value={form.donch_atr_stop_mult} onChange={update('donch_atr_stop_mult')} min={0.5} max={10} step={0.1} />
+              </div>
+              <div className="field">
+                <label>停利（ATR倍數）</label>
+                <input type="number" value={form.donch_atr_target_mult} onChange={update('donch_atr_target_mult')} min={0.5} max={30} step={0.1} />
+              </div>
+            </>
+          )}
         </>
       )}
 
@@ -195,6 +237,22 @@ export default function ControlPanel({ form, setForm, onSubmit, loading }) {
             <label>訊號線 EMA</label>
             <input type="number" value={form.macd_signal} onChange={update('macd_signal')} min={2} max={100} />
           </div>
+          <div className="field">
+            <label>版本</label>
+            <select
+              value={form.macd_use_filter ? 'filtered' : 'original'}
+              onChange={(e) => setForm((prev) => ({ ...prev, macd_use_filter: e.target.value === 'filtered' }))}
+            >
+              <option value="original">原版（可做多可做空）</option>
+              <option value="filtered">加濾網版（只做多+長期均線濾網）</option>
+            </select>
+          </div>
+          {form.macd_use_filter && (
+            <div className="field">
+              <label>濾網均線週期</label>
+              <input type="number" value={form.macd_filter_ma_period} onChange={update('macd_filter_ma_period')} min={20} max={500} />
+            </div>
+          )}
         </>
       )}
 

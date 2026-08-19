@@ -166,12 +166,22 @@ class BacktestRequest(BaseModel):
     cross_ma_type: Literal["sma", "ema"] = Field("sma")
     donch_entry_window: int = Field(20, ge=5, le=200)
     donch_exit_window: int = Field(10, ge=3, le=200)
+    donch_use_filter: bool = Field(False)
+    donch_adx_period: int = Field(14, ge=2, le=100)
+    donch_adx_threshold: float = Field(20, ge=0, le=60)
+    donch_vol_period: int = Field(20, ge=2, le=200)
+    donch_vol_mult: float = Field(1.1, ge=0.5, le=5.0)
+    donch_atr_period: int = Field(14, ge=2, le=100)
+    donch_atr_stop_mult: float = Field(2.5, ge=0.5, le=10.0)
+    donch_atr_target_mult: float = Field(8.0, ge=0.5, le=30.0)
     rsi_period: int = Field(14, ge=2, le=100)
     rsi_oversold: float = Field(30, ge=1, le=49)
     rsi_overbought: float = Field(70, ge=51, le=99)
     macd_fast: int = Field(12, ge=2, le=100)
     macd_slow: int = Field(26, ge=3, le=200)
     macd_signal: int = Field(9, ge=2, le=100)
+    macd_use_filter: bool = Field(False)
+    macd_filter_ma_period: int = Field(200, ge=20, le=500)
 
     # 均線交叉 / RSI / MACD 共用的停損設定（同一次請求只會用其中一組策略，欄位共用不衝突）
     stop_type: Literal["pct", "atr", "none"] = Field("pct", description="停損類型")
@@ -205,8 +215,13 @@ def _req_to_params(req: BacktestRequest) -> Dict[str, Any]:
         ma_fast=req.ma_fast, ma_mid=req.ma_mid, ma_slow=req.ma_slow, ma_type=req.ma_type,
         cross_fast=req.cross_fast, cross_slow=req.cross_slow, cross_ma_type=req.cross_ma_type,
         donch_entry_window=req.donch_entry_window, donch_exit_window=req.donch_exit_window,
+        donch_use_filter=req.donch_use_filter, donch_adx_period=req.donch_adx_period,
+        donch_adx_threshold=req.donch_adx_threshold, donch_vol_period=req.donch_vol_period,
+        donch_vol_mult=req.donch_vol_mult, donch_atr_period=req.donch_atr_period,
+        donch_atr_stop_mult=req.donch_atr_stop_mult, donch_atr_target_mult=req.donch_atr_target_mult,
         rsi_period=req.rsi_period, rsi_oversold=req.rsi_oversold, rsi_overbought=req.rsi_overbought,
         macd_fast=req.macd_fast, macd_slow=req.macd_slow, macd_signal=req.macd_signal,
+        macd_use_filter=req.macd_use_filter, macd_filter_ma_period=req.macd_filter_ma_period,
         stop_type=req.stop_type, stop_pct=req.stop_pct, atr_period=req.atr_period, atr_mult=req.atr_mult,
         atr_ch_period=req.atr_ch_period, atr_ch_ma_window=req.atr_ch_ma_window, atr_ch_mult=req.atr_ch_mult,
         fvg_atr_period=req.fvg_atr_period, fvg_max_wait=req.fvg_max_wait,
