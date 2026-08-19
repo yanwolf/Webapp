@@ -42,6 +42,7 @@ from stock_analysis import (
     analyze_signals, fetch_tw_fundamentals, fetch_institutional_daily,
     fetch_margin_daily, compute_volume_volatility, build_summary_text,
 )
+from futures_watch import FUTURES_PRESETS, get_ma3_snapshot
 from scheduler import start_scheduler
 
 logging.basicConfig(level=logging.INFO)
@@ -703,3 +704,15 @@ def analyze_stock(req: StockAnalysisRequest, user=Depends(auth.get_current_user)
         "volume_stats": volume_stats,
         "summary_text": summary_text,
     }
+
+
+# ======================================================================
+# 美股期貨三刀流監控（ES/NQ，1H含盤前盤後）
+# ======================================================================
+@app.get("/api/futures-watch")
+def futures_watch(user=Depends(auth.get_current_user)):
+    results = []
+    for preset in FUTURES_PRESETS:
+        snap = get_ma3_snapshot(preset["market"], preset["ticker"])
+        results.append({**preset, "snapshot": snap})
+    return {"results": results}

@@ -11,6 +11,7 @@ import WatchlistPage from './WatchlistPage';
 import ComparePage from './ComparePage';
 import OptimizePage from './OptimizePage';
 import StockAnalysisPage from './StockAnalysisPage';
+import FuturesWatchPage from './FuturesWatchPage';
 import HomePage from './HomePage';
 import AdminPage from './AdminPage';
 import LoginPage from './LoginPage';
@@ -173,6 +174,7 @@ export default function App() {
         <button className={`tab-btn ${tab === 'compare' ? 'active' : ''}`} onClick={() => setTab('compare')}>策略比較</button>
         <button className={`tab-btn ${tab === 'optimize' ? 'active' : ''}`} onClick={() => setTab('optimize')}>參數最佳化</button>
         <button className={`tab-btn ${tab === 'stockcheck' ? 'active' : ''}`} onClick={() => setTab('stockcheck')}>個股分析</button>
+        <button className={`tab-btn ${tab === 'futures' ? 'active' : ''}`} onClick={() => setTab('futures')}>美股期貨</button>
         <button className={`tab-btn ${tab === 'watchlist' ? 'active' : ''}`} onClick={() => setTab('watchlist')}>追蹤清單</button>
         {me?.is_admin && (
           <button className={`tab-btn ${tab === 'admin' ? 'active' : ''}`} onClick={() => setTab('admin')}>管理員</button>
@@ -193,6 +195,9 @@ export default function App() {
       </div>
       <div style={{ display: tab === 'stockcheck' ? 'block' : 'none' }}>
         <StockAnalysisPage />
+      </div>
+      <div style={{ display: tab === 'futures' ? 'block' : 'none' }}>
+        <FuturesWatchPage />
       </div>
       {me?.is_admin && (
         <div style={{ display: tab === 'admin' ? 'block' : 'none' }}>
