@@ -1,27 +1,5 @@
 import React, { useEffect } from 'react';
-
-const NAV_GROUPS = [
-  {
-    label: '總覽',
-    items: [{ key: 'home', label: '首頁', icon: '🏠' }],
-  },
-  {
-    label: '回測分析',
-    items: [
-      { key: 'backtest', label: '回測', icon: '📊' },
-      { key: 'compare', label: '策略比較', icon: '🆚' },
-      { key: 'optimize', label: '參數最佳化', icon: '🎯' },
-    ],
-  },
-  {
-    label: '盤勢監控',
-    items: [
-      { key: 'stockcheck', label: '個股分析', icon: '🔍' },
-      { key: 'futures', label: '美股期貨', icon: '⚔️' },
-      { key: 'watchlist', label: '追蹤清單', icon: '🔔' },
-    ],
-  },
-];
+import { NAV_GROUPS, ADMIN_NAV_ITEM } from './navConfig';
 
 export default function NavDrawer({ open, onClose, tab, setTab, isAdmin, username, onLogout }) {
   useEffect(() => {
@@ -36,7 +14,7 @@ export default function NavDrawer({ open, onClose, tab, setTab, isAdmin, usernam
   }, [open, onClose]);
 
   const groups = isAdmin
-    ? [...NAV_GROUPS, { label: '系統管理', items: [{ key: 'admin', label: '管理員', icon: '👤' }] }]
+    ? [...NAV_GROUPS, { label: '系統管理', items: [ADMIN_NAV_ITEM] }]
     : NAV_GROUPS;
 
   const select = (key) => {

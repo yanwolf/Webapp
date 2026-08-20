@@ -384,6 +384,21 @@ details.collapse-detail .table-wrap { margin-top: 10px; }
 }
 .hamburger-btn:hover { border-color: var(--gold); }
 
+.page-title-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 20px 0 4px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.page-title-icon { font-size: 15px; }
+.page-title-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
 .drawer-backdrop {
   position: fixed;
   inset: 0;

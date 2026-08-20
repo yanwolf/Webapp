@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from './api';
 import './App.css';
 import NavDrawer from './NavDrawer';
+import { NAV_ITEM_BY_KEY } from './navConfig';
 import ControlPanel from './components/ControlPanel';
 import MetricsGrid from './components/MetricsGrid';
 import OpenPositionBanner from './components/OpenPositionBanner';
@@ -180,6 +181,11 @@ export default function App() {
         username={username}
         onLogout={logout}
       />
+
+      <div className="page-title-bar">
+        <span className="page-title-icon">{NAV_ITEM_BY_KEY[tab]?.icon}</span>
+        <span className="page-title-text">{NAV_ITEM_BY_KEY[tab]?.label || ''}</span>
+      </div>
 
       <div style={{ display: tab === 'home' ? 'block' : 'none' }}>
         <HomePage onNavigate={setTab} />
