@@ -7,10 +7,12 @@ const BLADE_META = {
   slow: { title: '劉備 240MA', icon: '⚔️' },
 };
 
-// 我們自己抓資料用的代號(yfinance格式)跟TradingView的代號系統不一樣，這裡做對照
+// 我們自己抓資料用的代號(yfinance格式)跟TradingView的代號系統不一樣，這裡做對照。
+// CME期貨(ES/NQ)本身有交易所資料授權限制，TradingView公開嵌入小工具不給顯示，
+// 改用FOREX.com提供的價差合約(CFD)版本，價格幾乎同步、也是近24小時報價，但沒有這個限制
 const TRADINGVIEW_SYMBOL_MAP = {
-  'ES=F': 'CME_MINI:ES1!',
-  'NQ=F': 'CME_MINI:NQ1!',
+  'ES=F': 'FOREXCOM:SPXUSD',
+  'NQ=F': 'FOREXCOM:NSXUSD',
 };
 
 function num(v) {
@@ -79,7 +81,9 @@ export default function FuturesWatchCard({ label, ticker, snapshot }) {
 
       {tvSymbol && (
         <>
-          <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 14 }}>即時走勢（TradingView）</div>
+          <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 14 }}>
+            即時走勢（TradingView・價差合約，價格與期貨幾乎同步）
+          </div>
           <TradingViewMiniWidget symbol={tvSymbol} />
         </>
       )}
