@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-台股個股分析：整合8種策略的「目前狀態」+ 基本面資訊
+台股個股分析：整合各策略的「目前狀態」+ 基本面資訊
 ======================================================
 不做「買/不買」的斷言式結論，只把各項指標現況攤開，讓使用者自己判斷。
 
@@ -58,7 +58,7 @@ def _describe_state(strategy: str, row) -> str:
 
 def analyze_signals(df, capital: float = 1_000_000.0, df_ma3=None, ma3_interval_label: str = "日K"):
     """
-    對全部8種策略跑到最新一根K棒，回傳每個策略目前的持倉狀態
+    對全部策略跑到最新一根K棒，回傳每個策略目前的持倉狀態
 
     均線三刀流(ma3)的原始設計是用在1小時K上（20/60/240根1H K棒），跟其他策略用的日K
     是完全不同的時間跨度，所以若有提供 df_ma3（額外抓的1小時K資料），ma3 會改用它計算，
@@ -268,12 +268,13 @@ def build_summary_text(tally: dict, institutional_daily: Optional[list],
                         volume_stats: dict, margin_daily: Optional[list]) -> str:
     parts = []
 
+    total = tally["bullish"] + tally["bearish"] + tally["neutral"]
     if tally["bullish"] > tally["bearish"]:
-        parts.append(f"技術面：8個策略中有{tally['bullish']}個目前偏多、{tally['bearish']}個偏空，整體技術訊號偏多方。")
+        parts.append(f"技術面：{total}個策略中有{tally['bullish']}個目前偏多、{tally['bearish']}個偏空，整體技術訊號偏多方。")
     elif tally["bearish"] > tally["bullish"]:
-        parts.append(f"技術面：8個策略中有{tally['bearish']}個目前偏空、{tally['bullish']}個偏多，整體技術訊號偏空方。")
+        parts.append(f"技術面：{total}個策略中有{tally['bearish']}個目前偏空、{tally['bullish']}個偏多，整體技術訊號偏空方。")
     else:
-        parts.append(f"技術面：8個策略中偏多偏空各{tally['bullish']}個，訊號分歧，方向不明確。")
+        parts.append(f"技術面：{total}個策略中偏多偏空各{tally['bullish']}個，訊號分歧，方向不明確。")
 
     if institutional_daily:
         recent = institutional_daily[-5:]

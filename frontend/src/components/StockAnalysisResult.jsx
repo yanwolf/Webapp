@@ -250,7 +250,7 @@ export default function StockAnalysisResult({ data }) {
       )}
 
       <div className="chart-panel">
-        <div className="chart-panel-title"><span className="section-title-icon">📊</span>8種策略目前狀態</div>
+        <div className="chart-panel-title"><span className="section-title-icon">📊</span>各策略目前狀態</div>
         <div className="table-wrap" style={{ marginTop: 8 }}>
           <table className="trades">
             <thead>

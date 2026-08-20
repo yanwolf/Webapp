@@ -31,7 +31,7 @@ export default function StockAnalysisPage() {
   return (
     <div>
       <p className="hero-sub" style={{ marginLeft: 0 }}>
-        輸入一檔台股代碼，把 8 種策略目前的判斷、以及本益比、法人買賣超等基本面資訊整理給你看，
+        輸入一檔台股代碼，把多種策略目前的判斷、以及本益比、法人買賣超等基本面資訊整理給你看，
         幫助你自己判斷值不值得留意——不會直接告訴你「買」或「不買」。
       </p>
 
@@ -48,7 +48,7 @@ export default function StockAnalysisPage() {
       {loading && (
         <div className="status-line">
           <span className="spinner" />
-          正在跑完 8 種策略並查詢基本面資料…
+          正在跑完所有策略並查詢基本面資料…
         </div>
       )}
 
