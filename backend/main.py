@@ -37,7 +37,7 @@ from strategy_runner import (
     run_strategy, STRATEGY_LABELS, DEFAULT_PARAMS, min_bars_for_strategy,
     ALL_SIGNAL_STRATEGIES, STYLE_PRESETS, OPTIMIZE_GRIDS, PARAM_LABELS,
 )
-from ticker_search import search_tw, search_us, search_crypto
+from ticker_search import search_tw, search_us, search_crypto, get_tw_stock_name
 from stock_analysis import (
     analyze_signals, fetch_tw_fundamentals, fetch_institutional_daily,
     fetch_margin_daily, compute_volume_volatility, build_summary_text,
@@ -728,17 +728,40 @@ def analyze_stock(req: StockAnalysisRequest, user=Depends(auth.get_current_user)
     margin_daily = fetch_margin_daily(req.ticker, days=10)
     volume_stats = compute_volume_volatility(df)
     summary_text = build_summary_text(tally, institutional_daily, volume_stats, margin_daily)
+    stock_name = get_tw_stock_name(req.ticker)
 
+    # 日K只有在收盤後才會有「今天」這一根，盤中查詢時 df 最後一筆其實是昨收。
+    # df_1h（前面為了均線三刀流已經抓過）如果有比日K更新的資料，代表現在是盤中，
+    # 改用它的最後一筆當「現價」，日K原本的最後一筆收盤價則變成「昨收」參考基準。
     cur_price = float(df["Close"].iloc[-1])
-    prev_price = float(df["Close"].iloc[-2]) if len(df) > 1 else cur_price
-    day_change_pct = (cur_price / prev_price - 1) if prev_price else None
+    cur_price_date = df.index[-1]
+    prev_close = float(df["Close"].iloc[-2]) if len(df) > 1 else cur_price
+    prev_close_date = df.index[-2] if len(df) > 1 else df.index[-1]
+    is_intraday = False
+
+    if df_1h is not None and len(df_1h) > 0:
+        last_1h_ts = df_1h.index[-1]
+        last_1h_close = float(df_1h["Close"].iloc[-1])
+        if last_1h_ts.date() > cur_price_date.date():
+            prev_close, prev_close_date = cur_price, cur_price_date
+            cur_price, cur_price_date = last_1h_close, last_1h_ts
+            is_intraday = True
+        elif last_1h_ts.date() == cur_price_date.date() and abs(last_1h_close - cur_price) > 0.001:
+            cur_price, cur_price_date = last_1h_close, last_1h_ts
+            is_intraday = True
+
+    day_change_pct = (cur_price / prev_close - 1) if prev_close else None
 
     return {
         "ticker_resolved": resolved,
+        "stock_name": stock_name,
         "data_source": source,
         "notes": notes,
         "current_price": cur_price,
-        "price_date": df.index[-1].strftime("%Y-%m-%d"),
+        "price_date": cur_price_date.strftime("%Y-%m-%d %H:%M") if is_intraday else cur_price_date.strftime("%Y-%m-%d"),
+        "is_intraday": is_intraday,
+        "prev_close": prev_close,
+        "prev_close_date": prev_close_date.strftime("%Y-%m-%d"),
         "day_change_pct": day_change_pct,
         "data_points": len(df),
         "signals": signals,

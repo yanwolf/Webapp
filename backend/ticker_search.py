@@ -75,6 +75,18 @@ def _refresh_tw_list() -> Optional[list]:
         return None
 
 
+def get_tw_stock_name(ticker: str) -> Optional[str]:
+    """依代號反查台股中文名稱，查不到回傳 None"""
+    data = _refresh_tw_list()
+    if data is None:
+        return None
+    stock_id = ticker.strip().upper().replace(".TWO", "").replace(".TW", "").lstrip("^")
+    for row in data:
+        if str(row.get("stock_id", "")).upper() == stock_id:
+            return row.get("stock_name") or None
+    return None
+
+
 def search_tw(query: str, limit: int = 15) -> Optional[List[dict]]:
     """回傳 None 代表功能未啟用（沒設定FinMind Token或抓取失敗），回傳 [] 代表查無結果"""
     data = _refresh_tw_list()

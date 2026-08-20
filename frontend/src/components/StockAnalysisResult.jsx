@@ -26,7 +26,8 @@ const POSITION_META = {
 export default function StockAnalysisResult({ data }) {
   if (!data) return null;
   const {
-    ticker_resolved, current_price, price_date, day_change_pct, tally, signals,
+    ticker_resolved, stock_name, current_price, price_date, is_intraday,
+    prev_close, prev_close_date, day_change_pct, tally, signals,
     fundamentals, institutional_daily, margin_daily, volume_stats, summary_text,
   } = data;
 
@@ -38,14 +39,24 @@ export default function StockAnalysisResult({ data }) {
       <div className="panel" style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 10 }}>
           <div>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>{ticker_resolved}</div>
-            <div style={{ color: 'var(--text-faint)', fontSize: 12 }}>{price_date} 收盤</div>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>
+              {ticker_resolved}
+              {stock_name && <span style={{ fontSize: 15, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8 }}>{stock_name}</span>}
+            </div>
+            <div style={{ color: 'var(--text-faint)', fontSize: 12 }}>
+              {is_intraday ? `${price_date} 盤中報價` : `${price_date} 收盤`}
+            </div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div className="mono" style={{ fontSize: 26, fontWeight: 700 }}>{current_price?.toFixed(2)}</div>
             <div className={day_change_pct >= 0 ? 'up' : 'down'} style={{ fontSize: 13, fontFamily: 'var(--font-mono)' }}>
               {pct(day_change_pct)}
             </div>
+            {prev_close != null && (
+              <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 2 }}>
+                昨收 {prev_close.toFixed(2)}（{prev_close_date}）
+              </div>
+            )}
           </div>
         </div>
       </div>

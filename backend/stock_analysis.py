@@ -155,12 +155,15 @@ def fetch_tw_fundamentals(ticker: str) -> Optional[dict]:
     per_data = _fm_get("TaiwanStockPER", data_id, start_30)
     if per_data:
         latest = per_data[-1]
-        result["per"] = latest.get("PER")
-        result["pbr"] = latest.get("PBR")
+        # PER/PBR 是 0 通常代表「近四季沒有盈餘，交易所沒公布本益比」，不是真的估值為0，當成沒資料處理
+        per_val = latest.get("PER")
+        pbr_val = latest.get("PBR")
+        result["per"] = per_val if per_val else None
+        result["pbr"] = pbr_val if pbr_val else None
         result["dividend_yield"] = latest.get("dividend_yield")
         result["per_date"] = latest.get("date")
 
-    if result["per"] is None:
+    if not per_data:
         return None
 
     _fundamentals_cache[cache_key] = dict(data=result, ts=now)
