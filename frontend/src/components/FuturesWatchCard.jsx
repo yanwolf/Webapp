@@ -1,4 +1,5 @@
 import React from 'react';
+import TradingViewMiniWidget from './TradingViewMiniWidget';
 
 const BLADE_META = {
   fast: { title: '張飛 20MA', icon: '⚔️' },
@@ -6,12 +7,20 @@ const BLADE_META = {
   slow: { title: '劉備 240MA', icon: '⚔️' },
 };
 
+// 我們自己抓資料用的代號(yfinance格式)跟TradingView的代號系統不一樣，這裡做對照
+const TRADINGVIEW_SYMBOL_MAP = {
+  'ES=F': 'CME_MINI:ES1!',
+  'NQ=F': 'CME_MINI:NQ1!',
+};
+
 function num(v) {
   if (v == null) return '—';
   return v.toLocaleString('zh-TW', { maximumFractionDigits: 2 });
 }
 
-export default function FuturesWatchCard({ label, snapshot }) {
+export default function FuturesWatchCard({ label, ticker, snapshot }) {
+  const tvSymbol = TRADINGVIEW_SYMBOL_MAP[ticker];
+
   if (!snapshot || snapshot.error) {
     return (
       <div className="chart-panel">
@@ -19,6 +28,7 @@ export default function FuturesWatchCard({ label, snapshot }) {
         <div className="info-box" style={{ marginTop: 10 }}>
           ℹ️ {snapshot?.error || '暫時無法取得資料'}
         </div>
+        {tvSymbol && <TradingViewMiniWidget symbol={tvSymbol} />}
       </div>
     );
   }
@@ -66,6 +76,13 @@ export default function FuturesWatchCard({ label, snapshot }) {
           {snapshot.alignment}
         </span>
       </div>
+
+      {tvSymbol && (
+        <>
+          <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 14 }}>即時走勢（TradingView）</div>
+          <TradingViewMiniWidget symbol={tvSymbol} />
+        </>
+      )}
     </div>
   );
 }

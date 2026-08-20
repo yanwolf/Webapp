@@ -41,7 +41,7 @@ export default function FuturesWatchPage() {
       )}
 
       {data && data.map((item) => (
-        <FuturesWatchCard key={item.ticker} label={item.label} snapshot={item.snapshot} />
+        <FuturesWatchCard key={item.ticker} label={item.label} ticker={item.ticker} snapshot={item.snapshot} />
       ))}
 
       <footer className="note">
